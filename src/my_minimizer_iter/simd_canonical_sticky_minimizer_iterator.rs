@@ -1,5 +1,5 @@
 use minimizer_iter::iterator::CanonicalMinimizerIterator;
-use simd_minimizers::seed::canonical_minimizer_and_superkmer_positions;
+use simd_minimizers::seeded::canonical_minimizer_and_superkmer_positions;
 
 use core::hash::Hash;
 use num_traits::{AsPrimitive, PrimInt};
