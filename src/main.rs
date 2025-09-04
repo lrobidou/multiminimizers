@@ -6,7 +6,7 @@ use std::fs;
 
 use itertools::Itertools;
 
-mod my_minimizer_iter;
+mod simd_canonical_sticky_minimizer_iterator;
 mod subsequence;
 mod superkmer;
 mod superkmers_computation;

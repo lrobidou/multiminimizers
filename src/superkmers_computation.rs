@@ -1,7 +1,7 @@
 use num_traits::PrimInt;
 
 use super::superkmer::Superkmer;
-use crate::my_minimizer_iter::CanonicalStickyMinimizerIteratorSIMD;
+use crate::simd_canonical_sticky_minimizer_iterator::CanonicalStickyMinimizerIteratorSIMD;
 use crate::superkmer::{AnchorInfos, NoAnchor, REVCOMP_TAB};
 use std::cmp::Ordering;
 use std::iter::{Copied, Map, Rev};
