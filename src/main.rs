@@ -27,24 +27,29 @@ fn nb_base_in_representation(v: &[Superkmer<'_, NoAnchor>]) -> usize {
     v.iter().map(|sk| sk.superkmer.len()).sum()
 }
 
-fn get_overhead_and_avg_size<const N: usize>(read: &str, k: usize, m: usize) -> (f64, f64) {
+fn get_overhead_and_avg_size_and_nb_of_sk<const N: usize>(
+    read: &str,
+    k: usize,
+    m: usize,
+) -> (f64, f64, usize) {
     let superkmer_iter = compute_superkmers_linear_streaming::<N>(read.as_bytes(), k, m);
     let superkmers: Vec<Superkmer<'_, NoAnchor>> = superkmer_iter.unwrap().collect_vec();
 
     let nb_base = nb_base_in_representation(&superkmers);
     let overhead = nb_base as f64 / read.len() as f64;
     let avg_size = nb_base as f64 / superkmers.len() as f64;
+    let nb_sk = superkmers.len();
 
-    (overhead, avg_size)
+    (overhead, avg_size, nb_sk)
 }
 
 fn main() {
     let size_read = 1000000;
-    let k = 201;
+    let k = 101;
     let m = 17;
     let read = random_dna_seq(size_read);
 
-    let arr = collect_macro::collect!((16, get_overhead_and_avg_size, &read, k, m));
+    let arr = collect_macro::collect!((16, get_overhead_and_avg_size_and_nb_of_sk, &read, k, m));
 
     let data = format!("{:?}", arr);
     fs::write("data.txt", data).expect("Should be able to write to `data/txt`");
