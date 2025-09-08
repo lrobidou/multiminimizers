@@ -1,7 +1,9 @@
 use num_traits::PrimInt;
 
 use super::superkmer::Superkmer;
-use crate::simd_canonical_sticky_minimizer_iterator::CanonicalStickyMinimizerIteratorSIMD;
+use crate::simd_canonical_sticky_minimizer_iterator::{
+    CanonicalStickyMinimizerIteratorSIMD, SKInfos,
+};
 use crate::superkmer::{AnchorInfos, NoAnchor, REVCOMP_TAB};
 use std::cmp::Ordering;
 use std::iter::{Copied, Map, Rev};
@@ -20,7 +22,7 @@ pub struct SuperkmerIterator<'a, const N: usize> {
     minimizer_iter: std::iter::Peekable<CanonicalStickyMinimizerIteratorSIMD<N>>,
     k: usize,
     m: usize,
-    previous_minimizer: Option<(u32, u32 /*, bool*/)>,
+    previous_minimizer: Option<SKInfos>,
 }
 
 impl<'a, const N: usize> SuperkmerIterator<'a, N> {
@@ -31,7 +33,7 @@ impl<'a, const N: usize> SuperkmerIterator<'a, N> {
         m: usize,
     ) -> Self {
         let mut minimizer_iter = minimizer_iter.peekable();
-        let previous_minimizer: Option<(u32, u32 /*, bool*/)> = minimizer_iter.next();
+        let previous_minimizer = minimizer_iter.next();
         Self {
             sequence,
             minimizer_iter,
@@ -55,47 +57,21 @@ impl<'a, const N: usize> Iterator for SuperkmerIterator<'a, N> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let previous_minimizer = self.previous_minimizer?;
-        let start_mini = previous_minimizer.0 as usize;
-        let start_sk = previous_minimizer.1 as usize;
+        let start_mini = previous_minimizer.minimizer_start;
+        let start_sk = previous_minimizer.superkmer_start;
+        let end_sk = previous_minimizer.superkmer_end;
 
-        match self.minimizer_iter.next() {
-            Some(current_minimizer) => {
-                // println!(
-                //     "[SuperkmerIterator] current minimizer is {:?}",
-                //     previous_minimizer
-                // );
+        let sk = Superkmer::new(
+            self.sequence,
+            start_mini,
+            start_mini + self.m,
+            start_sk,
+            end_sk,
+            is_canonical(self.sequence, start_mini, self.m),
+        );
 
-                // println!(
-                //     "[SuperkmerIterator] FYI, next minimizer will be  {:?}",
-                //     current_minimizer
-                // );
-
-                let sk = Superkmer::new(
-                    self.sequence,
-                    start_mini,
-                    start_mini + self.m,
-                    start_sk,
-                    current_minimizer.1 as usize + self.k - 1,
-                    is_canonical(self.sequence, start_mini, self.m),
-                );
-                self.previous_minimizer = Some(current_minimizer);
-                // println!("[SuperkmerIterator] will return  {:?}", sk);
-                Some(sk)
-            }
-            None => {
-                // println!("[SuperkmerIterator] no other minimizer");
-                let sk = Superkmer::new(
-                    self.sequence,
-                    start_mini,
-                    start_mini + self.m,
-                    start_sk,
-                    self.sequence.len(),
-                    is_canonical(self.sequence, start_mini, self.m),
-                );
-                self.previous_minimizer = None;
-                Some(sk)
-            }
-        }
+        self.previous_minimizer = self.minimizer_iter.next();
+        Some(sk)
     }
 }
 
@@ -146,6 +122,46 @@ mod tests {
             compute_superkmers_linear_streaming::<1>("AGCAGCTAGCATTTT".as_bytes(), 16, 5)
         {
             panic!()
+        }
+    }
+
+    fn random_dna_seq(len: usize) -> String {
+        use rand::prelude::IndexedRandom;
+
+        let bases = [b'A', b'C', b'G', b'T'];
+        let mut rng = rand::rng();
+        let seq: Vec<u8> = (0..len).map(|_| *bases.choose(&mut rng).unwrap()).collect();
+        String::from_utf8(seq).unwrap()
+    }
+
+    #[test]
+    fn test_all_kmers_covered() {
+        for _ in 0..100 {
+            let size_read = 1000;
+            let k = 31;
+            let m = 17;
+            let read = random_dna_seq(size_read);
+
+            // used to break my algo computing the end of superkmer
+            // let read = "AGAACAGTTATCGTCTGATTCGCGAGGTACGGTTGGACACGGTAGGCTTGGTCGAAA";
+
+            let sk_iter = compute_superkmers_linear_streaming::<2>(read.as_bytes(), k, m).unwrap();
+
+            let sks = sk_iter.collect_vec();
+            let mut curr_sk = 0;
+            for i in 0..(read.len() - k + 1) {
+                let sk = sks[curr_sk];
+                assert!(sk.superkmer.start() < sk.superkmer.end() - k + 1);
+                if (sk.superkmer.start()..sk.superkmer.end() - k + 1).contains(&i) {
+                    // ok
+                } else {
+                    let next_sk = sks[curr_sk + 1];
+                    assert!(
+                        (next_sk.superkmer.start()..next_sk.superkmer.end() - k + 1).contains(&i)
+                    );
+                    curr_sk += 1;
+                }
+            }
         }
     }
 }
