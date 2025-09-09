@@ -39,7 +39,7 @@ impl DataToPlot {
     ) -> Self {
         let limit_overhead = 2;
         let limit_avg_superkmer_size = 2 * k - m;
-        let limit_nb_superkmer = size_read as f64 / limit_avg_superkmer_size as f64;
+        let limit_nb_superkmer = size_read as f64 / k as f64;
         Self {
             size_read,
             k,
@@ -121,7 +121,7 @@ fn non_canonical_get_overhead_and_avg_size_and_nb_of_sk<const N: usize>(
 
 fn main() {
     let size_read = 10_000_000;
-    let k = 31;
+    let k = 301;
     let m = 21;
     let read = random_dna_seq(size_read);
 
