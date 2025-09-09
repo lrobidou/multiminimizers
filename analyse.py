@@ -25,6 +25,7 @@ for filename in filenames:
 
         # compute the density
         density = [x * k / size_read for x in nb_superkmer]
+        limit_density = 1
 
         # Compute percentage differences from the first element
         overhead_diff_pct = [
@@ -66,6 +67,7 @@ for filename in filenames:
         axes[2, 0].set_ylabel("number of superkmer")
 
         axes[3, 0].plot(range1(density), density, "+--")
+        axes[3, 0].plot(range1(density), [limit_density] * len(density))
         axes[3, 0].set_title("Density")
         axes[3, 0].set_xlabel("number of hash function")
         axes[3, 0].set_ylabel("density")
