@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::fs;
 use sticky_mini::{
     superkmer::{NoAnchor, Superkmer},
@@ -13,6 +14,65 @@ mod two_bits;
 type Minimizer = u64;
 
 use itertools::Itertools;
+
+#[derive(Serialize, Deserialize)]
+struct DataToPlot {
+    size_read: usize,
+    k: usize,
+    m: usize,
+    limit_overhead: i32,
+    overhead: Vec<f64>,
+    limit_avg_superkmer_size: usize,
+    avg_superkmer_size: Vec<f64>,
+    limit_nb_superkmer: f64,
+    nb_superkmer: Vec<usize>,
+}
+
+impl DataToPlot {
+    pub fn new(
+        size_read: usize,
+        k: usize,
+        m: usize,
+        overhead: Vec<f64>,
+        avg_superkmer_size: Vec<f64>,
+        nb_superkmer: Vec<usize>,
+    ) -> Self {
+        let limit_overhead = 2;
+        let limit_avg_superkmer_size = 2 * k - m;
+        let limit_nb_superkmer = size_read as f64 / limit_avg_superkmer_size as f64;
+        Self {
+            size_read,
+            k,
+            m,
+            limit_overhead,
+            overhead,
+            limit_avg_superkmer_size,
+            avg_superkmer_size,
+            limit_nb_superkmer,
+            nb_superkmer,
+        }
+    }
+
+    pub fn from_array(size_read: usize, k: usize, m: usize, arr: [(f64, f64, usize); 16]) -> Self {
+        let mut overheads = vec![];
+        let mut avgs_superkmer_size = vec![];
+        let mut nbs_superkmer = vec![];
+
+        for (overhead, avg_superkmer_size, nb_superkmer) in arr {
+            overheads.push(overhead);
+            avgs_superkmer_size.push(avg_superkmer_size);
+            nbs_superkmer.push(nb_superkmer);
+        }
+        Self::new(
+            size_read,
+            k,
+            m,
+            overheads,
+            avgs_superkmer_size,
+            nbs_superkmer,
+        )
+    }
+}
 
 fn random_dna_seq(len: usize) -> String {
     use rand::prelude::IndexedRandom;
@@ -61,20 +121,20 @@ fn non_canonical_get_overhead_and_avg_size_and_nb_of_sk<const N: usize>(
 
 fn main() {
     let size_read = 10_000_000;
-    let k = 63;
-    let m = 17;
+    let k = 31;
+    let m = 21;
     let read = random_dna_seq(size_read);
 
-    let arr = collect_macro::collect!((
+    let arr: [(f64, f64, usize); 16] = collect_macro::collect!((
         16,
         canonical_get_overhead_and_avg_size_and_nb_of_sk,
         &read,
         k,
         m
     ));
-
-    let data = format!("{:?}", arr);
-    fs::write("data_canonical.txt", data).expect("Should be able to write to `data/txt`");
+    let data = DataToPlot::from_array(size_read, k, m, arr);
+    let data_str = serde_json::to_string(&data).unwrap();
+    fs::write("data_canonical.txt", data_str).expect("Should be able to write to `data/txt`");
 
     let arr = collect_macro::collect!((
         16,
@@ -83,9 +143,9 @@ fn main() {
         k,
         m
     ));
-
-    let data = format!("{:?}", arr);
-    fs::write("data_non_canonical.txt", data).expect("Should be able to write to `data/txt`");
+    let data = DataToPlot::from_array(size_read, k, m, arr);
+    let data_str = serde_json::to_string(&data).unwrap();
+    fs::write("data_non_canonical.txt", data_str).expect("Should be able to write to `data/txt`");
 
     println!("output written to data_canonical.txt and data_non_canonical.txt");
 }
