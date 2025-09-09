@@ -197,9 +197,8 @@ impl<Packing> Subsequence<Packing> {
 
     /// Extract a subsequence
     /// When not bit packed, equivalent to:
-    /// ```
-    /// Self::whole_string(self.to_string()[start..end])
-    /// ```
+    ///
+    /// `Self::whole_string(self.to_string()[start..end])`
     pub fn subsequence(self, start: usize, end: usize) -> Subsequence<Packing> {
         if self.same_orientation {
             Self {
