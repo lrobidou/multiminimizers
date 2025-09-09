@@ -71,7 +71,7 @@ impl Iterator for MiniIterator {
 fn get_max_pos<const N: usize>(arr: &[Option<SKInfos>; N]) -> Option<usize> {
     arr.iter()
         .enumerate()
-        .filter_map(|(i, opt)| opt.map(|infos| (i, infos.minimizer_start)))
+        .filter_map(|(i, opt)| opt.map(|infos| (i, infos.superkmer_end)))
         .max_by_key(|&(_i, second)| second)
         .map(|(i, _second)| i)
 }
