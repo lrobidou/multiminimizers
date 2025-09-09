@@ -7,7 +7,7 @@ use crate::two_bits;
 
 use num_traits::PrimInt;
 use std::cmp::min;
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, test))]
 use std::iter::Copied;
 use std::iter::Map;
 use std::iter::Rev;
@@ -19,7 +19,7 @@ use std::marker::PhantomData;
 use core::convert::identity as unlikely;
 #[cfg(feature = "nightly")]
 use core::intrinsics::unlikely;
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, test))]
 use std::slice::Iter;
 
 pub const REVCOMP_TAB_CHAR: [char; 255] = {
@@ -46,12 +46,12 @@ pub fn reverse_complement_ascii_to_ascii(seq: &[u8]) -> Vec<u8> {
         .collect()
 }
 
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, test))]
 pub fn same_orientation(seq: &[u8]) -> Copied<Iter<'_, u8>> {
     seq.iter().copied()
 }
 
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, test))]
 pub fn is_canonical(seq: &[u8]) -> bool {
     let mut orientation_1 = same_orientation(seq);
     let mut orientation_2 = reverse_complement_byte_iter(seq);
@@ -72,14 +72,14 @@ pub fn is_canonical(seq: &[u8]) -> bool {
 
 // TODO should we do something else instead of using this complex type?
 #[allow(clippy::type_complexity)]
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, test))]
 pub fn reverse_complement_byte_iter<'a>(seq: &'a [u8]) -> Map<Rev<Iter<'a, u8>>, fn(&'a u8) -> u8> {
     seq.iter()
         .rev()
         .map(|base| unsafe { *REVCOMP_TAB.get_unchecked(*base as usize) })
 }
 
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, test))]
 pub fn is_equal_to_its_revcomp(seq: &[u8]) -> bool {
     let mut orientation_1 = same_orientation(seq);
     let mut orientation_2 = reverse_complement_byte_iter(seq);

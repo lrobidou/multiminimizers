@@ -17,18 +17,18 @@ use core::convert::identity as unlikely;
 #[cfg(feature = "nightly")]
 use core::intrinsics::unlikely;
 
-pub struct SuperkmerIterator<'a, const N: usize> {
+pub struct SuperkmerIterator<'a, const N: usize, const CANONICAL: bool> {
     sequence: &'a [u8],
-    minimizer_iter: std::iter::Peekable<CanonicalStickyMinimizerIteratorSIMD<N>>,
+    minimizer_iter: std::iter::Peekable<CanonicalStickyMinimizerIteratorSIMD<N, CANONICAL>>,
     k: usize,
     m: usize,
     previous_minimizer: Option<SKInfos>,
 }
 
-impl<'a, const N: usize> SuperkmerIterator<'a, N> {
+impl<'a, const N: usize, const CANONICAL: bool> SuperkmerIterator<'a, N, CANONICAL> {
     fn new(
         sequence: &'a [u8],
-        minimizer_iter: CanonicalStickyMinimizerIteratorSIMD<N>,
+        minimizer_iter: CanonicalStickyMinimizerIteratorSIMD<N, CANONICAL>,
         k: usize,
         m: usize,
     ) -> Self {
@@ -52,7 +52,7 @@ fn is_canonical(sequence: &[u8], start_mini: usize, m: usize) -> bool {
     count_t_g * 2 > m
 }
 
-impl<'a, const N: usize> Iterator for SuperkmerIterator<'a, N> {
+impl<'a, const N: usize, const CANONICAL: bool> Iterator for SuperkmerIterator<'a, N, CANONICAL> {
     type Item = Superkmer<'a, NoAnchor>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -75,18 +75,18 @@ impl<'a, const N: usize> Iterator for SuperkmerIterator<'a, N> {
     }
 }
 
-pub fn compute_superkmers_linear_streaming<'a, const N: usize>(
+pub fn compute_superkmers_linear_streaming<'a, const N: usize, const CANONICAL: bool>(
     sequence: &'a [u8],
     k: usize,
     m: usize,
-) -> Option<SuperkmerIterator<'a, N>> {
+) -> Option<SuperkmerIterator<'a, N, CANONICAL>> {
     const {
         assert!(N >= 1, "At least one hash function is required");
     }
     if sequence.len() < k {
         None
     } else {
-        let minimizer_iter: CanonicalStickyMinimizerIteratorSIMD<N> =
+        let minimizer_iter: CanonicalStickyMinimizerIteratorSIMD<N, CANONICAL> =
             CanonicalStickyMinimizerIteratorSIMD::new(sequence, m, (k - m + 1) as u16);
         let superkmer_iter = SuperkmerIterator::new(sequence, minimizer_iter, k, m);
         Some(superkmer_iter)
@@ -118,8 +118,14 @@ mod tests {
     #[test]
     fn test_compute_superkmers_sequence_too_short() {
         // there are no superkmers for sequence < k
-        if let Some(_x) =
-            compute_superkmers_linear_streaming::<1>("AGCAGCTAGCATTTT".as_bytes(), 16, 5)
+        if compute_superkmers_linear_streaming::<1, true>("AGCAGCTAGCATTTT".as_bytes(), 16, 5)
+            .is_some()
+        {
+            panic!()
+        }
+
+        if compute_superkmers_linear_streaming::<1, false>("AGCAGCTAGCATTTT".as_bytes(), 16, 5)
+            .is_some()
         {
             panic!()
         }
@@ -134,8 +140,7 @@ mod tests {
         String::from_utf8(seq).unwrap()
     }
 
-    #[test]
-    fn test_all_kmers_covered() {
+    fn test_all_kmers_covered_inner<const CANONICAL: bool>() {
         for _ in 0..100 {
             let size_read = 1000;
             let k = 31;
@@ -145,7 +150,8 @@ mod tests {
             // used to break my algo computing the end of superkmer
             // let read = "AGAACAGTTATCGTCTGATTCGCGAGGTACGGTTGGACACGGTAGGCTTGGTCGAAA";
 
-            let sk_iter = compute_superkmers_linear_streaming::<2>(read.as_bytes(), k, m).unwrap();
+            let sk_iter =
+                compute_superkmers_linear_streaming::<2, CANONICAL>(read.as_bytes(), k, m).unwrap();
 
             let sks = sk_iter.collect_vec();
             let mut curr_sk = 0;
@@ -163,5 +169,11 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_all_kmers_covered() {
+        test_all_kmers_covered_inner::<false>();
+        test_all_kmers_covered_inner::<true>();
     }
 }

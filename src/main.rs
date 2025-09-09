@@ -1,10 +1,8 @@
-use crate::{
+use std::fs;
+use sticky_mini::{
     superkmer::{NoAnchor, Superkmer},
     superkmers_computation::compute_superkmers_linear_streaming,
 };
-use std::fs;
-
-use itertools::Itertools;
 
 mod simd_canonical_sticky_minimizer_iterator;
 mod subsequence;
@@ -13,6 +11,8 @@ mod superkmers_computation;
 mod two_bits;
 
 type Minimizer = u64;
+
+use itertools::Itertools;
 
 fn random_dna_seq(len: usize) -> String {
     use rand::prelude::IndexedRandom;
@@ -27,12 +27,28 @@ fn nb_base_in_representation(v: &[Superkmer<'_, NoAnchor>]) -> usize {
     v.iter().map(|sk| sk.superkmer.len()).sum()
 }
 
-fn get_overhead_and_avg_size_and_nb_of_sk<const N: usize>(
+fn canonical_get_overhead_and_avg_size_and_nb_of_sk<const N: usize>(
     read: &str,
     k: usize,
     m: usize,
 ) -> (f64, f64, usize) {
-    let superkmer_iter = compute_superkmers_linear_streaming::<N>(read.as_bytes(), k, m);
+    let superkmer_iter = compute_superkmers_linear_streaming::<N, true>(read.as_bytes(), k, m);
+    let superkmers: Vec<Superkmer<'_, NoAnchor>> = superkmer_iter.unwrap().collect_vec();
+
+    let nb_base = nb_base_in_representation(&superkmers);
+    let overhead = nb_base as f64 / read.len() as f64;
+    let avg_size = nb_base as f64 / superkmers.len() as f64;
+    let nb_sk = superkmers.len();
+
+    (overhead, avg_size, nb_sk)
+}
+
+fn non_canonical_get_overhead_and_avg_size_and_nb_of_sk<const N: usize>(
+    read: &str,
+    k: usize,
+    m: usize,
+) -> (f64, f64, usize) {
+    let superkmer_iter = compute_superkmers_linear_streaming::<N, false>(read.as_bytes(), k, m);
     let superkmers: Vec<Superkmer<'_, NoAnchor>> = superkmer_iter.unwrap().collect_vec();
 
     let nb_base = nb_base_in_representation(&superkmers);
@@ -44,18 +60,34 @@ fn get_overhead_and_avg_size_and_nb_of_sk<const N: usize>(
 }
 
 fn main() {
-    let size_read = 1000000;
-    let k = 101;
+    let size_read = 10_000_000;
+    let k = 63;
     let m = 17;
     let read = random_dna_seq(size_read);
 
-    let arr = collect_macro::collect!((16, get_overhead_and_avg_size_and_nb_of_sk, &read, k, m));
+    let arr = collect_macro::collect!((
+        16,
+        canonical_get_overhead_and_avg_size_and_nb_of_sk,
+        &read,
+        k,
+        m
+    ));
 
     let data = format!("{:?}", arr);
-    fs::write("data.txt", data).expect("Should be able to write to `data/txt`");
+    fs::write("data_canonical.txt", data).expect("Should be able to write to `data/txt`");
 
-    // println!("{:?}", arr);
-    println!("output written to data.txt");
+    let arr = collect_macro::collect!((
+        16,
+        non_canonical_get_overhead_and_avg_size_and_nb_of_sk,
+        &read,
+        k,
+        m
+    ));
+
+    let data = format!("{:?}", arr);
+    fs::write("data_non_canonical.txt", data).expect("Should be able to write to `data/txt`");
+
+    println!("output written to data_canonical.txt and data_non_canonical.txt");
 }
 
 // #[cfg(test)]

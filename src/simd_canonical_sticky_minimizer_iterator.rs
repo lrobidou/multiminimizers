@@ -1,4 +1,5 @@
 use simd_minimizers::seeded::canonical_minimizer_and_superkmer_positions;
+use simd_minimizers::seeded::minimizer_and_superkmer_positions;
 
 use std::fmt::Debug;
 use std::iter::Peekable;
@@ -77,14 +78,14 @@ fn get_max_pos<const N: usize>(arr: &[Option<SKInfos>; N]) -> Option<usize> {
 
 /// A SIMD iterator over `N` `CanonicalMinimizerIterator` of a sequence.
 /// It requires an odd width to break ties between multiple minimizers.
-pub struct CanonicalStickyMinimizerIteratorSIMD<const N: usize> {
+pub struct CanonicalStickyMinimizerIteratorSIMD<const N: usize, const CANONICAL: bool> {
     minimizer_iters: [Peekable<MiniIterator>; N],
     minimizers: [Option<SKInfos>; N],
     current_mini: Option<usize>,
     k: usize,
 }
 
-impl<const N: usize> CanonicalStickyMinimizerIteratorSIMD<N> {
+impl<const N: usize, const CANONICAL: bool> CanonicalStickyMinimizerIteratorSIMD<N, CANONICAL> {
     pub fn new(seq: &[u8], minimizer_size: usize, width: u16) -> Self {
         assert_eq!(
             width % 2,
@@ -96,14 +97,26 @@ impl<const N: usize> CanonicalStickyMinimizerIteratorSIMD<N> {
         let mut minimizer_iters: [Peekable<MiniIterator>; N] = std::array::from_fn(|i| {
             let mut min_pos_vec = vec![];
             let mut sks_pos_vec = vec![];
-            canonical_minimizer_and_superkmer_positions(
-                seq,
-                minimizer_size, // TODO ask
-                width as usize,
-                i as u32,
-                &mut min_pos_vec,
-                &mut sks_pos_vec,
-            );
+            if CANONICAL {
+                canonical_minimizer_and_superkmer_positions(
+                    seq,
+                    minimizer_size, // TODO ask
+                    width as usize,
+                    i as u32,
+                    &mut min_pos_vec,
+                    &mut sks_pos_vec,
+                );
+            } else {
+                minimizer_and_superkmer_positions(
+                    seq,
+                    minimizer_size, // TODO ask
+                    width as usize,
+                    i as u32,
+                    &mut min_pos_vec,
+                    &mut sks_pos_vec,
+                );
+            }
+
             let minimizer_iters =
                 MiniIterator::new(k, seq.len(), min_pos_vec, sks_pos_vec).unwrap();
             minimizer_iters.peekable()
@@ -136,7 +149,9 @@ impl<const N: usize> CanonicalStickyMinimizerIteratorSIMD<N> {
     }
 }
 
-impl<const N: usize> Iterator for CanonicalStickyMinimizerIteratorSIMD<N> {
+impl<const N: usize, const CANONICAL: bool> Iterator
+    for CanonicalStickyMinimizerIteratorSIMD<N, CANONICAL>
+{
     type Item = SKInfos;
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -19,3 +19,11 @@ simd-minimizers = { git = "https://github.com/rust-seq/simd-minimizers.git", bra
 collect_macro = { git = "https://github.com/lrobidou/collect_macro" }
 serde_json = "1.0.143"
 serde = { version = "1.0.219", features = ["derive"] }
+
+[dev-dependencies]
+criterion = { version = "0.7", features = ["html_reports"] }
+
+
+[[bench]]
+name = "bench"
+harness = false
