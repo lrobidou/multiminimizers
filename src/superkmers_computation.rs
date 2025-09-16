@@ -176,4 +176,35 @@ mod tests {
         test_all_kmers_covered_inner::<false>();
         test_all_kmers_covered_inner::<true>();
     }
+
+    fn check_density<'a>(m: usize, sk_iter: impl IntoIterator<Item = Superkmer<'a, NoAnchor>>) {
+        let sks = sk_iter.into_iter().collect_vec();
+        let read_size = sks[0].get_read().len();
+        let nb_minimizer = sks.len();
+        let sum_of_gaps: usize = sks
+            .iter()
+            .tuple_windows()
+            .map(|(a, b)| b.start_of_minimizer() - a.start_of_minimizer())
+            .sum();
+
+        let avg_sum_of_gaps = sum_of_gaps as f64 / sks.len() as f64;
+        let density = nb_minimizer as f64 / (read_size - m) as f64;
+
+        // let's check the product of the two are roughly 1
+        let fraction = density * avg_sum_of_gaps;
+        let target = 1.0;
+        let epsilon = 0.01;
+        assert!((target - epsilon..target + epsilon).contains(&fraction));
+    }
+    #[test]
+    fn test_product_density() {
+        let size_read = 10000;
+        let k = 31;
+        let m = 19;
+        let read = random_dna_seq(size_read);
+
+        let sk_iter =
+            compute_superkmers_linear_streaming::<1, true>(read.as_bytes(), k, m).unwrap();
+        check_density(m, sk_iter);
+    }
 }
