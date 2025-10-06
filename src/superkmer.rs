@@ -120,7 +120,8 @@ pub fn reverse_complement_no_copy(
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Superkmer<'a, T: Copy> {
-    minimizer: u64,
+    minimizer_no_hashed: u64,
+    minimizer_hashed: u64,
     start_mini: usize,
     end_mini: usize,
     anchor_infos: T,
@@ -151,7 +152,7 @@ impl<'a> Superkmer<'a, NoAnchor> {
         same_orientation: bool,
     ) -> Self {
         let minizer_subsequence = &read[start_mini..end_mini];
-        let minimizer = if same_orientation {
+        let minimizer_no_hashed = if same_orientation {
             two_bits::encode_minimizer(minizer_subsequence.iter().copied())
         } else {
             two_bits::encode_minimizer(reverse_complement_no_copy(
@@ -159,10 +160,11 @@ impl<'a> Superkmer<'a, NoAnchor> {
             ))
         };
 
-        let minimizer = xxh3_64(&minimizer.to_le_bytes());
+        let minimizer_hashed = xxh3_64(&minimizer_no_hashed.to_le_bytes());
 
         Self {
-            minimizer,
+            minimizer_no_hashed,
+            minimizer_hashed,
             start_mini,
             end_mini,
             anchor_infos: NoAnchor,
@@ -186,7 +188,7 @@ impl<'a, T: PrimInt, const SIZE_HALF_G_BITS: usize>
             assert!(SIZE_HALF_G_BITS <= size_of::<T>() * 8); // TODO redondant ?
         }
         let minizer_subsequence = &read[start_mini..end_mini];
-        let minimizer = if same_orientation {
+        let minimizer_no_hashed = if same_orientation {
             two_bits::encode_minimizer(minizer_subsequence.iter().copied())
         } else {
             two_bits::encode_minimizer(reverse_complement_no_copy(
@@ -194,10 +196,11 @@ impl<'a, T: PrimInt, const SIZE_HALF_G_BITS: usize>
             ))
         };
 
-        let minimizer = xxh3_64(&minimizer.to_le_bytes());
+        let minimizer_hashed = xxh3_64(&minimizer_no_hashed.to_le_bytes());
 
         Self {
-            minimizer,
+            minimizer_no_hashed,
+            minimizer_hashed,
             start_mini,
             end_mini,
             anchor_infos: AnchorInfos {
@@ -213,8 +216,12 @@ impl<'a, T: Copy> Superkmer<'a, T> {
         self.superkmer.hash()
     }
 
-    pub fn get_minimizer(&self) -> Minimizer {
-        self.minimizer
+    pub fn get_minimizer_no_hashed(&self) -> Minimizer {
+        self.minimizer_no_hashed
+    }
+
+    pub fn get_minimizer_hashed(&self) -> Minimizer {
+        self.minimizer_hashed
     }
 
     pub fn start_of_minimizer(&self) -> usize {

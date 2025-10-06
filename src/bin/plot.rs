@@ -5,12 +5,6 @@ use sticky_mini::{
     superkmers_computation::compute_superkmers_linear_streaming,
 };
 
-mod simd_canonical_sticky_minimizer_iterator;
-mod subsequence;
-mod superkmer;
-mod superkmers_computation;
-mod two_bits;
-
 type Minimizer = u64;
 
 use itertools::Itertools;
