@@ -16,5 +16,6 @@ python analyse.py  # plots the graph
 
 ## Index and query
 ```bash
-cargo run --bin needless -- --index tests/unit_test_data/index.fa --query tests/unit_test_data/query.fa -k 31 -m 21  # vec of booleans, one per k-mer in the query
+cargo run --bin needless -- index --input tests/unit_test_data/index.fa --output "index.needless" -k 31 -m 21
+cargo run --bin needless -- query --index index.needless --fasta tests/unit_test_data/query.fa  # vec of booleans, one per k-mer in the query
 ``

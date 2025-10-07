@@ -1,8 +1,11 @@
 use std::collections::HashSet;
 
+use serde::{Deserialize, Serialize};
+
 const INDEX_BITS: usize = 10;
 const INDEX_SIZE: usize = 1 << INDEX_BITS;
 
+#[derive(Serialize, Deserialize)]
 pub struct QuotientSet {
     buckets: Vec<HashSet<u32>>,
 }

@@ -1,6 +1,11 @@
-use clap::Parser;
+use clap::{Args, Parser, Subcommand};
+
 use itertools::Itertools;
-use std::collections::HashSet;
+use serde::Deserialize;
+use serde::Serialize;
+use std::fs::File;
+use std::io::BufReader;
+use std::io::BufWriter;
 use std::path::Path;
 
 use sticky_mini::superkmers_computation::compute_all_superkmers_linear_streaming as compute_all_superkmers;
@@ -21,21 +26,52 @@ fn replace_n(sequences: &mut Vec<Vec<u8>>) {
 }
 
 const CANONICAL: bool = true;
+const NB_HASH: usize = 8;
 
-/// Simple program to parse a list of integers
 #[derive(Parser, Debug)]
-#[command(author, version, about)]
-struct Args {
-    #[clap(short, long)]
-    index: String,
-    #[clap(short, long)]
-    query: String,
-    #[clap(short, long)]
-    k: usize,
-    #[clap(short, long)]
-    m: usize,
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
 }
 
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Build an index indexing the k-mers of a FASTA/Q file
+    #[clap(alias = "i")]
+    Index(IndexArgs),
+    /// Query an index
+    #[clap(alias = "q")]
+    Query(QueryArgs),
+}
+
+#[derive(Args, Debug)]
+struct IndexArgs {
+    /// K-mer size
+    #[arg(short)]
+    k: usize,
+    /// Minimizer size
+    #[arg(short, default_value_t = 21)]
+    m: usize,
+    /// Input file (FASTA/Q, possibly gzipped)
+    #[arg(short, long)]
+    input: String,
+    /// Output file ({input}.needless by default)
+    #[arg(short, long)]
+    output: Option<String>,
+}
+
+#[derive(Args, Debug)]
+struct QueryArgs {
+    /// Input index
+    #[arg(short, long)]
+    index: String,
+    /// Input fasta file
+    #[arg(short, long)]
+    fasta: String,
+}
+
+#[derive(Serialize, Deserialize)]
 struct Index<const N: usize> {
     k: usize,
     m: usize,
@@ -65,7 +101,7 @@ impl<const N: usize> Index<N> {
         }
     }
 
-    pub fn search_ascii_read(&mut self, mut read: Vec<u8>) -> Vec<bool> {
+    pub fn search_ascii_read(&self, mut read: Vec<u8>) -> Vec<bool> {
         for char in read.iter_mut() {
             if char == &b'N' {
                 *char = b'A';
@@ -89,19 +125,53 @@ impl<const N: usize> Index<N> {
         });
         response
     }
+
+    pub fn dump<P: AsRef<Path>>(&self, filename: P) -> Result<(), Box<dyn std::error::Error>> {
+        let file = File::create(filename)?;
+        let buffer = BufWriter::with_capacity(9000000, file);
+        bincode::serialize_into(buffer, &self)?;
+        Ok(())
+    }
+
+    pub fn load<P: AsRef<Path>>(filename: P) -> Result<Self, Box<dyn std::error::Error>> {
+        let file = File::open(filename)?;
+        let buffer = BufReader::with_capacity(9000000, file);
+        let decoded: Self = bincode::deserialize_from(buffer)?;
+        Ok(decoded)
+    }
 }
 
 fn main() {
-    let args = Args::parse();
-    let sequences = LinesIter::from_path(args.index);
+    let args = Cli::parse();
+    match args.command {
+        Command::Index(IndexArgs {
+            k,
+            m,
+            input,
+            output,
+        }) => {
+            let sequences = LinesIter::from_path(&input);
 
-    let mut index: Index<8> = Index::new(args.k, args.m);
-    index.add_reads(sequences);
+            let mut index: Index<NB_HASH> = Index::new(k, m);
+            index.add_reads(sequences);
+            let output = match output {
+                Some(x) => x,
+                None => format!("{}.needless", input),
+            };
+            index
+                .dump(output)
+                .expect("should have been able to dump the index");
+        }
+        Command::Query(QueryArgs { index, fasta }) => {
+            let index: Index<NB_HASH> =
+                Index::load(index).expect("should have been able to load index");
 
-    LinesIter::from_path(args.query).for_each(|read| {
-        let response = index.search_ascii_read(read);
-        println!("{:?}", response);
-    });
+            LinesIter::from_path(fasta).for_each(|read| {
+                let response = index.search_ascii_read(read);
+                println!("{:?}", response);
+            });
+        }
+    }
 }
 
 #[cfg(test)]
