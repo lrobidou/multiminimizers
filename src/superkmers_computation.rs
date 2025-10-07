@@ -2,13 +2,9 @@ use num_traits::PrimInt;
 
 use super::superkmer::Superkmer;
 use crate::simd_canonical_sticky_minimizer_iterator::{
-    CanonicalStickyMinimizerIteratorSIMD, SKInfos,
+    AllCanonicalStickyMinimizerIteratorSIMD, CanonicalStickyMinimizerIteratorSIMD, SKInfos,
 };
-use crate::superkmer::{AnchorInfos, NoAnchor, REVCOMP_TAB};
-use std::cmp::Ordering;
-use std::iter::{Copied, Map, Rev};
-use std::marker::PhantomData;
-use std::slice::Iter;
+use crate::superkmer::NoAnchor;
 
 // Branch prediction hint. This is currently only available on nightly but it
 // consistently improves performance by 10-15%.
@@ -89,6 +85,76 @@ pub fn compute_superkmers_linear_streaming<'a, const N: usize, const CANONICAL: 
         let minimizer_iter: CanonicalStickyMinimizerIteratorSIMD<N, CANONICAL> =
             CanonicalStickyMinimizerIteratorSIMD::new(sequence, m, (k - m + 1) as u16);
         let superkmer_iter = SuperkmerIterator::new(sequence, minimizer_iter, k, m);
+        Some(superkmer_iter)
+    }
+}
+
+pub struct AllPossibleSuperkmerIterator<'a, const N: usize, const CANONICAL: bool> {
+    sequence: &'a [u8],
+    minimizer_iter: std::iter::Peekable<AllCanonicalStickyMinimizerIteratorSIMD<N, CANONICAL>>,
+    k: usize,
+    m: usize,
+    previous_minimizer: Option<SKInfos>,
+}
+
+impl<'a, const N: usize, const CANONICAL: bool> AllPossibleSuperkmerIterator<'a, N, CANONICAL> {
+    fn new(
+        sequence: &'a [u8],
+        minimizer_iter: AllCanonicalStickyMinimizerIteratorSIMD<N, CANONICAL>,
+        k: usize,
+        m: usize,
+    ) -> Self {
+        let mut minimizer_iter = minimizer_iter.peekable();
+        let previous_minimizer = minimizer_iter.next();
+        Self {
+            sequence,
+            minimizer_iter,
+            k,
+            m,
+            previous_minimizer,
+        }
+    }
+}
+
+impl<'a, const N: usize, const CANONICAL: bool> Iterator
+    for AllPossibleSuperkmerIterator<'a, N, CANONICAL>
+{
+    type Item = Superkmer<'a, NoAnchor>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let previous_minimizer = self.previous_minimizer?;
+        let start_mini = previous_minimizer.minimizer_start;
+        let start_sk = previous_minimizer.superkmer_start;
+        let end_sk = previous_minimizer.superkmer_end;
+
+        let sk = Superkmer::new(
+            self.sequence,
+            start_mini,
+            start_mini + self.m,
+            start_sk,
+            end_sk,
+            is_canonical(self.sequence, start_mini, self.m),
+        );
+
+        self.previous_minimizer = self.minimizer_iter.next();
+        Some(sk)
+    }
+}
+
+pub fn compute_all_superkmers_linear_streaming<'a, const N: usize, const CANONICAL: bool>(
+    sequence: &'a [u8],
+    k: usize,
+    m: usize,
+) -> Option<AllPossibleSuperkmerIterator<'a, N, CANONICAL>> {
+    const {
+        assert!(N >= 1, "At least one hash function is required");
+    }
+    if sequence.len() < k {
+        None
+    } else {
+        let minimizer_iter: AllCanonicalStickyMinimizerIteratorSIMD<N, CANONICAL> =
+            AllCanonicalStickyMinimizerIteratorSIMD::new(sequence, m, (k - m + 1) as u16);
+        let superkmer_iter = AllPossibleSuperkmerIterator::new(sequence, minimizer_iter, k, m);
         Some(superkmer_iter)
     }
 }
