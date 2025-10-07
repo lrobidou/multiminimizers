@@ -1,37 +1,14 @@
+use clap::Parser;
+use itertools::Itertools;
 use std::collections::HashSet;
 use std::path::Path;
 
-use clap::Parser;
-use itertools::Itertools;
-use needletail::{FastxReader, parse_fastx_file};
 use sticky_mini::superkmers_computation::compute_all_superkmers_linear_streaming as compute_all_superkmers;
 use sticky_mini::superkmers_computation::compute_superkmers_linear_streaming as compute_superkmers;
 
-struct LinesIter {
-    data: Box<dyn FastxReader>,
-}
-
-impl LinesIter {
-    fn new(data: Box<dyn FastxReader>) -> Self {
-        Self { data }
-    }
-
-    fn from_path<P: AsRef<Path>>(path: P) -> Self {
-        let sequences = parse_fastx_file(path).unwrap();
-        Self::new(sequences)
-    }
-}
-
-impl Iterator for LinesIter {
-    type Item = Vec<u8>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let record = self.data.next()?.unwrap();
-        let sequence = record.seq();
-        let sequence_vec = sequence.iter().copied().collect(); // TODO copy
-        Some(sequence_vec)
-    }
-}
+mod needless_modules;
+use crate::needless_modules::LinesIter;
+use crate::needless_modules::QuotientSet;
 
 fn replace_n(sequences: &mut Vec<Vec<u8>>) {
     for sequence in sequences {
@@ -57,7 +34,7 @@ struct Args {
 struct Index<const N: usize> {
     k: usize,
     m: usize,
-    data: HashSet<u64>,
+    data: QuotientSet,
 }
 
 impl<const N: usize> Index<N> {
@@ -65,7 +42,7 @@ impl<const N: usize> Index<N> {
         Self {
             k,
             m,
-            data: HashSet::new(),
+            data: QuotientSet::new(),
         }
     }
 
@@ -73,14 +50,11 @@ impl<const N: usize> Index<N> {
         let mut lines = sequences.into_iter().collect_vec(); //TODO copy
         replace_n(&mut lines);
         for sequence in lines {
-            // OPTIMIZE no need for sk, can just iterate over minimizer
-
             let superkmers = match compute_superkmers::<N, CANONICAL>(&sequence, self.k, self.m) {
                 Some(superkmers_iter) => superkmers_iter,
                 None => continue,
             };
             superkmers.for_each(|sk| {
-                println!("{}", sk.get_minimizer_no_hashed());
                 self.data.insert(sk.get_minimizer_no_hashed());
             })
         }
@@ -100,15 +74,11 @@ impl<const N: usize> Index<N> {
                 return response;
             }
         };
-        // println!("coucou");
         superkmers.for_each(|sk| {
-            // println!("querying: {}", sk.get_minimizer_no_hashed());
-            if self.data.contains(&sk.get_minimizer_no_hashed()) {
-                // println!("yes");
-                // self.data.insert(sk.get_minimizer_no_hashed());
+            if self.data.contains(sk.get_minimizer_no_hashed()) {
+                // hit: update the covered k-mers
                 let start = sk.superkmer.start();
                 let end = sk.superkmer.end() - self.k + 1;
-
                 response[start..end].fill(true);
             }
         });
