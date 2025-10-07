@@ -26,8 +26,13 @@ const CANONICAL: bool = true;
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct Args {
-    path: String,
+    #[clap(short, long)]
+    index: String,
+    #[clap(short, long)]
+    query: String,
+    #[clap(short, long)]
     k: usize,
+    #[clap(short, long)]
     m: usize,
 }
 
@@ -88,10 +93,15 @@ impl<const N: usize> Index<N> {
 
 fn main() {
     let args = Args::parse();
-    let sequences = LinesIter::from_path(args.path);
+    let sequences = LinesIter::from_path(args.index);
 
     let mut index: Index<8> = Index::new(args.k, args.m);
     index.add_reads(sequences);
+
+    LinesIter::from_path(args.query).for_each(|read| {
+        let response = index.search_ascii_read(read);
+        println!("{:?}", response);
+    });
 }
 
 #[cfg(test)]
