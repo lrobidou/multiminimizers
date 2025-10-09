@@ -1,3 +1,6 @@
+# cargo criterion --message-format json > result.json
+# python3 benches/plot_bench.py
+
 import json
 import matplotlib.pyplot as plt
 import numpy as np
