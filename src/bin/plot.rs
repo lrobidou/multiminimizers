@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::fs;
+use std::{collections::HashMap, fs};
 use sticky_mini::{
     superkmer::{NoAnchor, Superkmer},
     superkmers_computation::compute_superkmers_linear_streaming,
@@ -10,11 +10,11 @@ type Minimizer = u64;
 use itertools::Itertools;
 
 #[derive(Serialize, Deserialize)]
-struct DataToPlot {
+struct DataToPlotForAK {
     size_read: usize,
     k: usize,
     m: usize,
-    limit_overhead: i32,
+    limit_overhead: f64,
     overhead: Vec<f64>,
     limit_avg_superkmer_size: usize,
     avg_superkmer_size: Vec<f64>,
@@ -22,7 +22,7 @@ struct DataToPlot {
     nb_superkmer: Vec<usize>,
 }
 
-impl DataToPlot {
+impl DataToPlotForAK {
     pub fn new(
         size_read: usize,
         k: usize,
@@ -31,9 +31,13 @@ impl DataToPlot {
         avg_superkmer_size: Vec<f64>,
         nb_superkmer: Vec<usize>,
     ) -> Self {
-        let limit_overhead = 2;
         let limit_avg_superkmer_size = 2 * k - m;
-        let limit_nb_superkmer = size_read as f64 / k as f64;
+        let limit_nb_superkmer = size_read as f64 / (k - m + 1) as f64;
+
+        let limit_overhead = (2.0 * k as f64 - m as f64) / (k - m + 1) as f64;
+
+        // println!("k = {k}, limit_overhead = {limit_overhead}");
+
         Self {
             size_read,
             k,
@@ -65,6 +69,65 @@ impl DataToPlot {
             avgs_superkmer_size,
             nbs_superkmer,
         )
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct DataToPlot {
+    data: HashMap<usize, DataToPlotForAK>,
+}
+
+impl DataToPlot {
+    pub fn new(data: HashMap<usize, DataToPlotForAK>) -> Self {
+        Self { data }
+    }
+
+    pub fn compute_canonical_data(
+        k_iter: impl Iterator<Item = usize>,
+        read: &str,
+        m: usize,
+    ) -> Self {
+        let raw_data_for_multiple_ks = k_iter
+            .map(|k| {
+                let arr: [(f64, f64, usize); 16] = collect_macro::collect!((
+                    16,
+                    canonical_get_overhead_and_avg_size_and_nb_of_sk,
+                    &read,
+                    k,
+                    m
+                ));
+                (k, DataToPlotForAK::from_array(read.len(), k, m, arr))
+            })
+            .collect();
+
+        Self::new(raw_data_for_multiple_ks)
+    }
+
+    pub fn compute_non_canonical_data(
+        k_iter: impl Iterator<Item = usize>,
+        read: &str,
+        m: usize,
+    ) -> Self {
+        let raw_data_for_multiple_ks = k_iter
+            .map(|k| {
+                let arr: [(f64, f64, usize); 16] = collect_macro::collect!((
+                    16,
+                    non_canonical_get_overhead_and_avg_size_and_nb_of_sk,
+                    &read,
+                    k,
+                    m
+                ));
+                (k, DataToPlotForAK::from_array(read.len(), k, m, arr))
+            })
+            .collect();
+
+        Self::new(raw_data_for_multiple_ks)
+    }
+
+    pub fn write_to_file(&self, filename: &str) {
+        let data_str = serde_json::to_string(&self).unwrap();
+        fs::write(filename, data_str)
+            .unwrap_or_else(|_| panic!("Should be able to write to `{filename}`"));
     }
 }
 
@@ -115,33 +178,23 @@ fn non_canonical_get_overhead_and_avg_size_and_nb_of_sk<const N: usize>(
 
 fn main() {
     let size_read = 10_000_000;
-    let k = 301;
-    let m = 21;
+    let m = 11;
     let read = random_dna_seq(size_read);
+    let k_start = 31;
+    let k_stop = 61;
+    let step = 10;
 
-    let arr: [(f64, f64, usize); 16] = collect_macro::collect!((
-        16,
-        canonical_get_overhead_and_avg_size_and_nb_of_sk,
-        &read,
-        k,
-        m
-    ));
-    let data = DataToPlot::from_array(size_read, k, m, arr);
-    let data_str = serde_json::to_string(&data).unwrap();
-    fs::write("data_canonical.txt", data_str).expect("Should be able to write to `data/txt`");
+    let ks = (k_start..=k_stop).step_by(step);
+    let filename_canonical = "data_canonical.json";
+    let data = DataToPlot::compute_canonical_data(ks, &read, m);
+    data.write_to_file(filename_canonical);
 
-    let arr = collect_macro::collect!((
-        16,
-        non_canonical_get_overhead_and_avg_size_and_nb_of_sk,
-        &read,
-        k,
-        m
-    ));
-    let data = DataToPlot::from_array(size_read, k, m, arr);
-    let data_str = serde_json::to_string(&data).unwrap();
-    fs::write("data_non_canonical.txt", data_str).expect("Should be able to write to `data/txt`");
+    let ks = (k_start..=k_stop).step_by(step);
+    let filename_non_canonical = "data_non_canonical.json";
+    let data = DataToPlot::compute_non_canonical_data(ks, &read, m);
+    data.write_to_file(filename_non_canonical);
 
-    println!("output written to data_canonical.txt and data_non_canonical.txt");
+    println!("output written to {filename_canonical} and {filename_non_canonical}");
 }
 
 // #[cfg(test)]
