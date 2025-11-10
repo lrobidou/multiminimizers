@@ -96,7 +96,7 @@ ax.tick_params(axis='both', which='major', labelsize=fontsize)
 
 plt.show()
 fig.tight_layout()
-# fig.savefig('mean.pdf')
+fig.savefig('mean.pdf')
 
 fig,ax = plt.subplots(figsize=(12, 8))
 
