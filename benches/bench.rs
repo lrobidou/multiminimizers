@@ -1,11 +1,9 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 
+use multiminimizers::compute_superkmers_linear_streaming;
+use multiminimizers::needless_modules::{Index, LinesIter};
 use simd_minimizers::seeded::canonical_minimizer_and_superkmer_positions;
-use std::fmt::format;
 use std::hint::black_box;
-use sticky_mini::needless_modules::{Index, LinesIter};
-
-use sticky_mini::compute_superkmers_linear_streaming;
 
 use std::fs::{self, File};
 use std::io::Write;

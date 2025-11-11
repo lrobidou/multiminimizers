@@ -1,9 +1,9 @@
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs};
-use sticky_mini::{
+use multiminimizers::{
     superkmer::{NoAnchor, Superkmer},
     superkmers_computation::compute_superkmers_linear_streaming,
 };
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, fs};
 
 type Minimizer = u64;
 
@@ -178,11 +178,11 @@ fn non_canonical_get_overhead_and_avg_size_and_nb_of_sk<const N: usize>(
 
 fn main() {
     let size_read = 10_000_000;
-    let m = 11;
+    let m = 21;
     let read = random_dna_seq(size_read);
     let k_start = 31;
-    let k_stop = 61;
-    let step = 10;
+    let k_stop = 201;
+    let step = 50;
 
     let ks = (k_start..=k_stop).step_by(step);
     let filename_canonical = "data_canonical.json";

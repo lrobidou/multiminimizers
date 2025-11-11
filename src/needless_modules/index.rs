@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use needletail::sequence;
 use serde::Deserialize;
 use serde::Serialize;
 use std::fs::File;
@@ -8,13 +9,13 @@ use std::path::Path;
 
 use super::{LinesIter, QuotientSet};
 
-use crate::superkmers_computation::compute_all_superkmers_linear_streaming as compute_all_superkmers;
-use crate::superkmers_computation::compute_superkmers_linear_streaming as compute_superkmers;
+use crate::compute_all_superkmers_linear_streaming as compute_all_superkmers;
+use crate::compute_superkmers_linear_streaming as compute_superkmers;
 
 const CANONICAL: bool = true;
 const NB_HASH: usize = 8;
 
-fn replace_n(sequences: &mut Vec<Vec<u8>>) {
+pub fn replace_n(sequences: &mut Vec<Vec<u8>>) {
     for sequence in sequences {
         for char in sequence {
             if char == &b'N' {

@@ -1,6 +1,6 @@
 use clap::{Args, Parser, Subcommand};
 
-use sticky_mini::needless_modules::{Index, LinesIter};
+use multiminimizers::needless_modules::{Index, LinesIter};
 
 const NB_HASH: usize = 8;
 
