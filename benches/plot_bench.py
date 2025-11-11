@@ -1,9 +1,7 @@
-# cargo criterion --message-format json > result.json
-# python3 benches/plot_bench.py
-
 import json
 import matplotlib.pyplot as plt
 import numpy as np
+import argparse
 
 
 def r2(y, y_pred):
@@ -14,7 +12,12 @@ def r2(y, y_pred):
 
 
 def main():
-    filename = "result.json"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("filename")
+    args = parser.parse_args()
+
+    filename = args.filename
+
     with open(filename, "r") as fichier:
         benches = []
         index = 1
@@ -32,7 +35,6 @@ def main():
     for bench in benches:
         assert bench["mean"]["unit"] == "ns"
         time_nano_second.append(bench["mean"]["estimate"])
-    print(time_nano_second)
 
     les_x = range(1, len(time_nano_second) + 1)
 
@@ -53,7 +55,7 @@ def main():
     plt.ymin = 0
     plt.legend(loc="best")
     plt.title(
-        "Time required to index 100000 bases with regars to the number of hash functions"
+        "Time required to iterate over the super-k-mers with regard to the number of hash functions"
     )
     plt.show()
 
