@@ -67,7 +67,7 @@ impl Iterator for MiniIterator {
     }
 }
 
-/// Gets the further minimizer if it exists, else returns None.
+/// Gets the furthest superkmer if it exists, else returns None.
 fn get_max_pos<const N: usize>(arr: &[Option<SKInfos>; N]) -> Option<usize> {
     arr.iter()
         .enumerate()
