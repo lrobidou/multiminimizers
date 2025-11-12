@@ -7,7 +7,7 @@ const INDEX_SIZE: usize = 1 << INDEX_BITS;
 
 #[derive(Serialize, Deserialize)]
 pub struct QuotientSet {
-    buckets: Vec<HashSet<u32>>,
+    buckets: Vec<HashSet<u64>>,
 }
 
 impl QuotientSet {
@@ -18,18 +18,14 @@ impl QuotientSet {
     }
 
     pub fn insert(&mut self, x: u64) {
-        let q = (x >> (64 - 32)) as u32;
-        let i = ((x >> (64 - 42)) & 0x3FF) as usize;
-        debug_assert!(
-            (x & ((1u64 << (64 - 42)) - 1)) == 0,
-            "Ignored bits are not zero"
-        );
-        self.buckets[i].insert(q);
+        let q = (x >> (64 - INDEX_BITS)) as usize;
+        let r = (x << INDEX_BITS) >> INDEX_BITS;
+        self.buckets[q].insert(r);
     }
 
     pub fn contains(&self, x: u64) -> bool {
-        let q = (x >> (64 - 32)) as u32;
-        let i = ((x >> (64 - 42)) & 0x3FF) as usize;
-        self.buckets[i].contains(&q)
+        let q = (x >> (64 - INDEX_BITS)) as usize;
+        let r = (x << INDEX_BITS) >> INDEX_BITS;
+        self.buckets[q].contains(&r)
     }
 }
