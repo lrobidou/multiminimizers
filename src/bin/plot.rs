@@ -9,6 +9,8 @@ type Minimizer = u64;
 
 use itertools::Itertools;
 
+const NB_HASH: usize = 8;
+
 #[derive(Serialize, Deserialize)]
 struct DataToPlotForAK {
     size_read: usize,
@@ -51,7 +53,12 @@ impl DataToPlotForAK {
         }
     }
 
-    pub fn from_array(size_read: usize, k: usize, m: usize, arr: [(f64, f64, usize); 16]) -> Self {
+    pub fn from_array(
+        size_read: usize,
+        k: usize,
+        m: usize,
+        arr: [(f64, f64, usize); NB_HASH],
+    ) -> Self {
         let mut overheads = vec![];
         let mut avgs_superkmer_size = vec![];
         let mut nbs_superkmer = vec![];
@@ -89,8 +96,31 @@ impl DataToPlot {
     ) -> Self {
         let raw_data_for_multiple_ks = k_iter
             .map(|k| {
-                let arr: [(f64, f64, usize); 16] = collect_macro::collect!((
-                    16,
+                let arr: [(f64, f64, usize); NB_HASH] = collect_macro::collect!((
+                    8,
+                    canonical_get_overhead_and_avg_size_and_nb_of_sk,
+                    &read,
+                    k,
+                    m
+                ));
+                (k, DataToPlotForAK::from_array(read.len(), k, m, arr))
+            })
+            .collect();
+
+        Self::new(raw_data_for_multiple_ks)
+    }
+
+    pub fn compute_canonical_data_fixed_w(
+        m_iter: impl Iterator<Item = usize>,
+        read: &str,
+        w: usize,
+    ) -> Self {
+        let raw_data_for_multiple_ks = m_iter
+            .map(|m| {
+                // w = k - m + 1
+                let k = w + m - 1;
+                let arr: [(f64, f64, usize); NB_HASH] = collect_macro::collect!((
+                    8,
                     canonical_get_overhead_and_avg_size_and_nb_of_sk,
                     &read,
                     k,
@@ -110,8 +140,8 @@ impl DataToPlot {
     ) -> Self {
         let raw_data_for_multiple_ks = k_iter
             .map(|k| {
-                let arr: [(f64, f64, usize); 16] = collect_macro::collect!((
-                    16,
+                let arr: [(f64, f64, usize); NB_HASH] = collect_macro::collect!((
+                    8,
                     non_canonical_get_overhead_and_avg_size_and_nb_of_sk,
                     &read,
                     k,
@@ -184,17 +214,33 @@ fn main() {
     let k_stop = 201;
     let step = 50;
 
-    let ks = (k_start..=k_stop).step_by(step);
-    let filename_canonical = "data_canonical.json";
-    let data = DataToPlot::compute_canonical_data(ks, &read, m);
-    data.write_to_file(filename_canonical);
+    // let ks = (k_start..=k_stop).step_by(step);
+    // let filename_canonical = "data_canonical.json";
+    // let data = DataToPlot::compute_canonical_data(ks, &read, m);
+    // data.write_to_file(filename_canonical);
 
-    let ks = (k_start..=k_stop).step_by(step);
-    let filename_non_canonical = "data_non_canonical.json";
-    let data = DataToPlot::compute_non_canonical_data(ks, &read, m);
-    data.write_to_file(filename_non_canonical);
+    // let ks = (k_start..=k_stop).step_by(step);
+    // let filename_non_canonical = "data_non_canonical.json";
+    // let data = DataToPlot::compute_non_canonical_data(ks, &read, m);
+    // data.write_to_file(filename_non_canonical);
 
-    println!("output written to {filename_canonical} and {filename_non_canonical}");
+    let m_start = 5;
+    let m_stop = 31;
+    let step = 2;
+    let ms = (m_start..=m_stop).step_by(step);
+
+    let w = 25;
+    let filename_fixed_w = "data_fixed_w_25.json";
+    let data = DataToPlot::compute_canonical_data_fixed_w(ms, &read, w);
+    data.write_to_file(filename_fixed_w);
+
+    let w = 7;
+    let filename_fixed_w = "data_fixed_w_7.json";
+    let ms = (m_start..=m_stop).step_by(step);
+    let data = DataToPlot::compute_canonical_data_fixed_w(ms, &read, w);
+    data.write_to_file(filename_fixed_w);
+
+    // println!("output written to {filename_canonical} and {filename_non_canonical}");
 }
 
 // #[cfg(test)]

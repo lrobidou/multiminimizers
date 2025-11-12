@@ -56,5 +56,5 @@ default = []
 bench = false
 crate-type = ["cdylib", "rlib"]
 
-[[example]]
-name = "lp"
+# [[example]]
+# name = "lp"
