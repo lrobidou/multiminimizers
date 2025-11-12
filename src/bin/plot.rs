@@ -207,7 +207,7 @@ fn non_canonical_get_overhead_and_avg_size_and_nb_of_sk<const N: usize>(
 }
 
 fn main() {
-    let size_read = 10_000_000;
+    let size_read = 5_000_000;
     let m = 21;
     let read = random_dna_seq(size_read);
     let k_start = 31;
@@ -225,20 +225,15 @@ fn main() {
     // data.write_to_file(filename_non_canonical);
 
     let m_start = 5;
-    let m_stop = 31;
+    let m_stop = 81;
     let step = 2;
-    let ms = (m_start..=m_stop).step_by(step);
 
-    let w = 25;
-    let filename_fixed_w = "data_fixed_w_25.json";
-    let data = DataToPlot::compute_canonical_data_fixed_w(ms, &read, w);
-    data.write_to_file(filename_fixed_w);
-
-    let w = 7;
-    let filename_fixed_w = "data_fixed_w_7.json";
-    let ms = (m_start..=m_stop).step_by(step);
-    let data = DataToPlot::compute_canonical_data_fixed_w(ms, &read, w);
-    data.write_to_file(filename_fixed_w);
+    for w in [3, 7, 15, 31, 63] {
+        let ms = (m_start..=m_stop).step_by(step);
+        let filename_fixed_w = format!("data_fixed_w_{w}.json");
+        let data = DataToPlot::compute_canonical_data_fixed_w(ms, &read, w);
+        data.write_to_file(&filename_fixed_w);
+    }
 
     // println!("output written to {filename_canonical} and {filename_non_canonical}");
 }

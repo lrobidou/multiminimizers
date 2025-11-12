@@ -50,7 +50,7 @@ impl<const N: usize> Index<N> {
                 None => continue,
             };
             superkmers.for_each(|sk| {
-                self.data.insert(sk.get_minimizer_no_hashed());
+                self.data.insert(sk.get_minimizer_hashed());
             })
         }
     }
@@ -70,7 +70,7 @@ impl<const N: usize> Index<N> {
             }
         };
         superkmers.for_each(|sk| {
-            if self.data.contains(sk.get_minimizer_no_hashed()) {
+            if self.data.contains(sk.get_minimizer_hashed()) {
                 // hit: update the covered k-mers
                 let start = sk.superkmer.start();
                 let end = sk.superkmer.end() - self.k + 1;

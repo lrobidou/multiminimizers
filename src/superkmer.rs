@@ -120,7 +120,7 @@ pub fn reverse_complement_no_copy(
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Superkmer<'a, T: Copy> {
-    minimizer_no_hashed: u64,
+    // minimizer_no_hashed: u128,
     minimizer_hashed: u64,
     start_mini: usize,
     end_mini: usize,
@@ -152,18 +152,16 @@ impl<'a> Superkmer<'a, NoAnchor> {
         same_orientation: bool,
     ) -> Self {
         let minizer_subsequence = &read[start_mini..end_mini];
-        let minimizer_no_hashed = if same_orientation {
-            two_bits::encode_minimizer(minizer_subsequence.iter().copied())
+        let minimizer_no_hashed: Vec<u8> = if same_orientation {
+            minizer_subsequence.to_vec()
         } else {
-            two_bits::encode_minimizer(reverse_complement_no_copy(
-                minizer_subsequence.iter().copied(),
-            ))
+            reverse_complement_no_copy(minizer_subsequence.iter().copied()).collect()
         };
 
-        let minimizer_hashed = xxh3_64(&minimizer_no_hashed.to_le_bytes());
+        let minimizer_hashed = xxh3_64(&minimizer_no_hashed);
 
         Self {
-            minimizer_no_hashed,
+            // minimizer_no_hashed,
             minimizer_hashed,
             start_mini,
             end_mini,
@@ -188,18 +186,16 @@ impl<'a, T: PrimInt, const SIZE_HALF_G_BITS: usize>
             assert!(SIZE_HALF_G_BITS <= size_of::<T>() * 8); // TODO redondant ?
         }
         let minizer_subsequence = &read[start_mini..end_mini];
-        let minimizer_no_hashed = if same_orientation {
-            two_bits::encode_minimizer(minizer_subsequence.iter().copied())
+        let minimizer_no_hashed: Vec<u8> = if same_orientation {
+            minizer_subsequence.to_vec()
         } else {
-            two_bits::encode_minimizer(reverse_complement_no_copy(
-                minizer_subsequence.iter().copied(),
-            ))
+            reverse_complement_no_copy(minizer_subsequence.iter().copied()).collect()
         };
 
-        let minimizer_hashed = xxh3_64(&minimizer_no_hashed.to_le_bytes());
+        let minimizer_hashed = xxh3_64(&minimizer_no_hashed);
 
         Self {
-            minimizer_no_hashed,
+            // minimizer_no_hashed,
             minimizer_hashed,
             start_mini,
             end_mini,
@@ -216,11 +212,11 @@ impl<'a, T: Copy> Superkmer<'a, T> {
         self.superkmer.hash()
     }
 
-    pub fn get_minimizer_no_hashed(&self) -> Minimizer {
-        self.minimizer_no_hashed
-    }
+    // pub fn get_minimizer_no_hashed(&self) -> Minimizer {
+    //     self.minimizer_no_hashed
+    // }
 
-    pub fn get_minimizer_hashed(&self) -> Minimizer {
+    pub fn get_minimizer_hashed(&self) -> u64 {
         self.minimizer_hashed
     }
 
