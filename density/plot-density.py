@@ -4,12 +4,27 @@ import pandas as pd
 import seaborn as sns
 import numpy as np
 from math import log
-import matplotlib as mpl
 
-mpl.rcParams["figure.dpi"] = 400
-# show more dataframe rows
-# pd.set_option("display.min_rows", 50)
-# pd.set_option("display.max_rows", 100)
+
+TOOLS_PALETTE = {
+    "RandomMinimizer": "tab:blue",
+    "ModMinimizer": "tab:green",
+    "DoubleDecycling": "tab:red",
+    "Miniception": "tab:orange",
+    "GreedyMini": "tab:purple",
+    # "GreedyMini": "tab:brown",
+}
+
+PALETTE = [
+    "#4E79A7",
+    "#76B7B2",
+    "#B07AA1",
+    "#FF9DA7",
+    "#E15759",
+    "#F28E2B",
+    "#EDC948",
+    "#59A14F",
+]
 
 
 def multimini_load(filename):
@@ -58,7 +73,7 @@ def multimini(filename):
     return densities, minimizer_sizes
 
 
-def g(w, k):
+def lower_bound(w, k):
     """Lower bound (https://doi.org/10.1101/2024.09.06.611668)"""
     return 1 / (w + k) * ((w + k + (w - 1)) // w)
 
@@ -81,7 +96,6 @@ def plot(data):
         plt.axhline(y=(1) / (w), color="black", linewidth=0.5)
         plt.axhline(y=(2) / (w + 1), color="black", linewidth=0.5)
         ks = range(df_filtered.k.min(), df_filtered.k.max())
-        plt.plot(ks, [g(w, k) for k in ks], color="red", linewidth=0.5)
 
         sns.lineplot(
             x="k",
@@ -93,25 +107,46 @@ def plot(data):
             legend="full",
             marker=".",
             dashes=False,
+            palette=TOOLS_PALETTE,
         )
 
         densities, minimizer_sizes = multimini(f"../data_fixed_w_{w}.json")
-        for nb_hash, nb_hash_data in enumerate(densities):
-            plt.plot(minimizer_sizes, nb_hash_data, label=f"multiminimi {nb_hash + 1}")
+        for nb_hash, nb_hash_data in enumerate(densities, start=1):
+            if nb_hash > 1:
+                plt.plot(
+                    minimizer_sizes,
+                    nb_hash_data,
+                    "--",
+                    color=PALETTE[nb_hash - 2],
+                    label=f"Multi-minimizers ({nb_hash})",
+                )
 
-        plt.title(
-            f"Minimizer density on random text (alphabet size σ={s}; length=5M, w={w})"
+        plt.plot(
+            ks,
+            [lower_bound(w, k) for k in ks],
+            ":",
+            color=PALETTE[-1],
+            label="Lower bound for forward schemes",
         )
-        plt.xlabel("Minimizer length m")
+
+        plt.title(f"Minimizer density on random text ($w={w}$)")
+        plt.xlabel("Minimizer length $m$")
         plt.ylabel("Density")
-        plt.yscale("log", base=2)
+        # plt.yscale("log", base=2)
         plt.yticks(
             [2 / (w + 1)] + [1 / w],
             [f"{2 / (w + 1):.3f}"] + [f"{1 / w:.3f}"],
         )
-        plt.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
 
-        plt.savefig(f"density_{s}_w_{w}.pdf", bbox_inches="tight")
+        handles, labels = plt.gca().get_legend_handles_labels()
+        pairs = list(sorted(zip(labels, handles)))
+        pairs.insert(0, pairs.pop())
+        pairs.append(pairs.pop(3))
+        pairs[2], pairs[3] = pairs[3], pairs[2]
+        labels, handles = zip(*pairs)
+        plt.legend(handles, labels, bbox_to_anchor=(1.02, 1), loc="upper left")
+
+        plt.savefig(f"density_{s}_w_{w}.pdf", bbox_inches="tight", dpi=300)
         plt.clf()
         plt.close()
         sns.reset_defaults()
