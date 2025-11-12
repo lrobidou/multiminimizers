@@ -2,7 +2,7 @@ use std::{
     fs,
     io::Write,
     path::PathBuf,
-    sync::{atomic::AtomicUsize, Mutex},
+    sync::{Mutex, atomic::AtomicUsize},
 };
 
 use clap::Parser;
@@ -162,7 +162,7 @@ fn main() {
             } else if practicaly {
                 &[5, 12, 19]
             } else {
-                &[7, 25][..]
+                &[3, 7, 15, 31, 63][..]
             };
             let k_w_tp = ks
                 .iter()
