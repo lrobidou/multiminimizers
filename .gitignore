@@ -1,3 +1,9 @@
 /target
 /coverage
 data.txt
+Cargo.lock
+*.json
+*.png
+*.svg
+*.pdf
+.DS_Store
