@@ -12,7 +12,6 @@ TOOLS_PALETTE = {
     "DoubleDecycling": "tab:red",
     "Miniception": "tab:orange",
     "GreedyMini": "tab:purple",
-    # "GreedyMini": "tab:brown",
 }
 
 PALETTE = [
@@ -74,7 +73,7 @@ def multimini(filename):
 
 
 def lower_bound(w, k):
-    """Lower bound (https://doi.org/10.1101/2024.09.06.611668)"""
+    """Lower bound for forward schemes (https://doi.org/10.1101/2024.09.06.611668)"""
     return 1 / (w + k) * ((w + k + (w - 1)) // w)
 
 
@@ -118,7 +117,7 @@ def plot(data):
                     nb_hash_data,
                     "--",
                     color=PALETTE[nb_hash - 2],
-                    label=f"Multi-minimizers ({nb_hash})",
+                    label=f"Multiminimizers ({nb_hash})",
                 )
 
         plt.plot(
@@ -132,7 +131,6 @@ def plot(data):
         plt.title(f"Minimizer density on random text ($w={w}$)")
         plt.xlabel("Minimizer length $m$")
         plt.ylabel("Density")
-        # plt.yscale("log", base=2)
         plt.yticks(
             [2 / (w + 1)] + [1 / w],
             [f"{2 / (w + 1):.3f}"] + [f"{1 / w:.3f}"],
@@ -147,6 +145,7 @@ def plot(data):
         plt.legend(handles, labels, bbox_to_anchor=(1.02, 1), loc="upper left")
 
         plt.savefig(f"density_{s}_w_{w}.pdf", bbox_inches="tight", dpi=300)
+        # plt.savefig(f"density_{s}_w_{w}.png", bbox_inches="tight", dpi=300)
         plt.clf()
         plt.close()
         sns.reset_defaults()
