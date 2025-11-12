@@ -12,7 +12,6 @@ flamegraph.svg
 /.cargo
 /examples
 /fig
-/greedy-mini-data
 /py
 Cargo.lock
 justfile

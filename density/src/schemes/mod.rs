@@ -54,6 +54,9 @@ impl<O: ToOrder> Params for RM<O> {
     fn build(&self, w: usize, k: usize, sigma: usize) -> Box<dyn SamplingScheme> {
         M((self.0.clone(), RandomO)).build(w, k, sigma)
     }
+    fn valid_params(&self, w: usize, k: usize, sigma: usize) -> bool {
+        self.0.valid_params(w, k, sigma)
+    }
 }
 
 // ORDERS.

@@ -28,6 +28,9 @@ impl<I: Iterator<Item = usize>> MinimizerIt for I {}
 #[typetag::serialize(tag = "minimizer_type")]
 pub trait Params: Debug + Sync {
     fn build(&self, w: usize, k: usize, sigma: usize) -> Box<dyn SamplingScheme>;
+    fn valid_params(&self, w: usize, k: usize, sigma: usize) -> bool {
+        true
+    }
 }
 
 pub trait SamplingScheme: Sync {

@@ -16,6 +16,20 @@ pub struct Greedy {
 impl ToOrder for GreedyP {
     type O = Greedy;
 
+    fn valid_params(&self, w: usize, k: usize, _sigma: usize) -> bool {
+        let paths = [
+            format!("greedy-mini-data/w{w}_k{k}.bin"),
+            format!("../greedy-mini-data/w{w}_k{k}.bin"),
+        ];
+        for p in paths {
+            match std::fs::exists(p) {
+                Ok(true) => return true,
+                _ => continue,
+            }
+        }
+        false
+    }
+
     fn to_order(&self, w: usize, k: usize, _sigma: usize) -> Self::O {
         let paths = [
             format!("greedy-mini-data/w{w}_k{k}.bin"),

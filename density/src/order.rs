@@ -265,6 +265,9 @@ impl<O1: Order, O2: Order> Order for (O1, O2) {
 pub trait ToOrder: Clone + Debug + Sync + Serialize + 'static {
     type O: Order;
     fn to_order(&self, w: usize, k: usize, sigma: usize) -> Self::O;
+    fn valid_params(&self, w: usize, k: usize, sigma: usize) -> bool {
+        true
+    }
 }
 
 impl<O1: ToOrder, O2: ToOrder> ToOrder for (O1, O2) {

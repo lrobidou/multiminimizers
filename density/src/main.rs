@@ -113,6 +113,7 @@ fn main() {
                 o: RandomO,
                 miniception_r: true,
             });
+            let greedymini = schemes::RM(schemes::greedy::GreedyP);
             let mut base_types = vec![
                 (&schemes::RM(()) as &dyn Params, "RandomMinimizer"),
                 // &BdAnchorP { r: 0 },
@@ -131,6 +132,7 @@ fn main() {
                 // },
                 // &OpenClosedSyncmerMinimizerP { t: 0 },
                 // &FracMinP{ f: 0 },
+                (&greedymini as &dyn Params, "GreedyMini"),
             ];
             if small {
                 base_types.push((&BruteforceP as &dyn Params, "Bruteforce"));
@@ -187,6 +189,10 @@ fn main() {
                 let l = w + k - 1;
                 let tps = vec![tp];
                 for (tp, name) in tps {
+                    if !tp.valid_params(w, k, sigma) {
+                        eprintln!("{name} not available for w={w} k={k} sigma={sigma}");
+                        continue;
+                    }
                     let (density, positions, dists, transfer, _counts, _dist_counts) =
                         collect_stats(w, k, text, &*tp.build(w, k, sigma));
                     let mut results = results.lock().unwrap();
