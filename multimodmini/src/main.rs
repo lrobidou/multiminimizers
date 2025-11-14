@@ -1,25 +1,37 @@
-use std::borrow::Cow;
-use std::env;
-use std::error::Error;
-use std::fs::File;
-use std::io::{self, BufRead, BufReader, BufWriter, Write};
-use std::path::Path;
+use clap::Parser;
 
-use multiminimizers::compute_superkmers_linear_streaming;
+#[derive(Debug, Parser)]
+#[command(name = "ocmm")]
+#[command(disable_help_subcommand = true)]
+struct Args {
+    #[arg(long)]
+    size_read: usize,
 
+    #[arg(long)]
+    minimizer_size: usize,
 
-const SIZE_READ:usize = 50_000;
+    #[arg(long = "window", short)]
+    w: usize,
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let config = Config::from_env()?;
-    run(config)?;
-    Ok(())
+    #[arg(long = "anchor-s")]
+    anchor_s: Option<usize>,
+
+    #[arg(short, default_value = "4")]
+    r: usize,
+
+    #[arg(long = "hashes", alias = "hash-count", default_value = "4")]
+    hash_count: usize,
+
+    #[arg(long = "seed")]
+    base_seed: Option<u64>,
+
+    #[arg(long = "verify")]
+    verify: bool,
 }
 
 #[derive(Debug)]
-struct Config {
-    // input: String,
-    emit_path: Option<String>,
+pub struct Config {
+    size_read: usize,
     k: usize,
     w: usize,
     t: usize,
@@ -27,129 +39,35 @@ struct Config {
     hash_count: usize,
     base_seed: u64,
     verify: bool,
-    compare_classic: bool,
-    classic_canonical: bool,
 }
 
 impl Config {
-    fn from_env() -> Result<Self, Box<dyn Error>> {
-        let mut args: Vec<String> = env::args().collect();
-        // Skip program path.
-        if args.len() == 1 {
-            return Err(Box::from(Config::usage()));
-        }
-        // Remove the binary path.
-        args.remove(0);
-        let mut input = None;
-        let mut emit_path = None;
-        let mut k = None;
-        let mut w = None;
-        let mut anchor_s = None;
-        let mut r = 4usize;
-        let mut hash_count = 4usize;
-        let mut base_seed: u64 = 0x9E37_79B1_85EB_CA87;
-        let mut verify = false;
-        let mut compare_classic = false;
-        let mut classic_canonical = false;
-
-        let mut iter = args.into_iter();
-        while let Some(arg) = iter.next() {
-            match arg.as_str() {
-                "-i" | "--input" => {
-                    input = Some(
-                        iter.next()
-                            .ok_or_else(|| format!("Missing value for {arg}"))?,
-                    )
-                }
-                "-k" | "--kmer" => {
-                    k = Some(
-                        iter.next()
-                            .ok_or_else(|| format!("Missing value for {arg}"))?
-                            .parse::<usize>()
-                            .map_err(|_| format!("Invalid integer for {arg}"))?,
-                    );
-                }
-                "-w" | "--window" => {
-                    w = Some(
-                        iter.next()
-                            .ok_or_else(|| format!("Missing value for {arg}"))?
-                            .parse::<usize>()
-                            .map_err(|_| format!("Invalid integer for {arg}"))?,
-                    );
-                }
-                "--anchor-s" => {
-                    anchor_s = Some(
-                        iter.next()
-                            .ok_or_else(|| "Missing value for --anchor-s".to_string())?
-                            .parse::<usize>()
-                            .map_err(|_| "Invalid integer for --anchor-s")?,
-                    );
-                }
-                "--r" => {
-                    r = iter
-                        .next()
-                        .ok_or_else(|| "Missing value for --r".to_string())?
-                        .parse::<usize>()
-                        .map_err(|_| "Invalid integer for --r")?;
-                }
-                "--hashes" | "--hash-count" => {
-                    hash_count = iter
-                        .next()
-                        .ok_or_else(|| "Missing value for --hashes".to_string())?
-                        .parse::<usize>()
-                        .map_err(|_| "Invalid integer for --hashes")?;
-                }
-                "--seed" => {
-                    base_seed = iter
-                        .next()
-                        .ok_or_else(|| "Missing value for --seed".to_string())?
-                        .parse::<u64>()
-                        .map_err(|_| "Invalid integer for --seed")?;
-                }
-                "--emit" => {
-                    emit_path = Some(
-                        iter.next()
-                            .ok_or_else(|| "Missing value for --emit".to_string())?,
-                    );
-                }
-                "--verify" => {
-                    verify = true;
-                }
-                "--compare-classic" => {
-                    compare_classic = true;
-                }
-                "--classic-canonical" => {
-                    classic_canonical = true;
-                }
-                "--help" | "-h" => {
-                    return Err(Box::from(Config::usage()));
-                }
-                other => {
-                    return Err(Box::from(format!(
-                        "Unknown argument '{other}'\n{}",
-                        Config::usage()
-                    )));
-                }
-            }
-        }
-
-        // let input = input.ok_or_else(|| Config::usage())?;
-        let k = k.ok_or_else(|| "Missing required argument --kmer".to_string())?;
-        let w = w.ok_or_else(|| "Missing required argument --window".to_string())?;
+    pub fn new(
+        size_read: usize,
+        minimizer_size: usize,
+        w: usize,
+        r: usize,
+        anchor_s: Option<usize>,
+        hash_count: usize,
+        base_seed: u64,
+        verify: bool,
+    ) -> Result<Self, String> {
+        let k = minimizer_size;
         if k == 0 || w == 0 {
-            return Err(Box::from(
-                "Both --kmer and --window must be positive integers",
-            ));
+            return Err("Both --kmer and --window must be positive integers".into());
         }
-        if hash_count == 0 {
-            return Err(Box::from("--hashes must be at least 1"));
-        }
+
         if r == 0 {
-            return Err(Box::from("--r must be at least 1"));
+            return Err("--r must be at least 1".into());
         }
         if r > k {
-            return Err(Box::from("--r must not exceed --kmer"));
+            return Err("--r must not exceed --kmer".into());
         }
+
+        if hash_count == 0 {
+            return Err("--hashes must be at least 1".into());
+        }
+
         let t = if k <= w {
             k
         } else {
@@ -157,21 +75,19 @@ impl Config {
             r + rem
         };
         if t == 0 {
-            return Err(Box::from("Derived anchor length t must be positive"));
+            return Err("Derived anchor length t must be positive".into());
         }
         if t > k {
-            return Err(Box::from("Derived anchor length t can not exceed k"));
+            return Err("Derived anchor length t can not exceed k".into());
         }
+
         let anchor_s = anchor_s.unwrap_or_else(|| std::cmp::max(1, t / 2));
         if anchor_s == 0 || anchor_s > t {
-            return Err(Box::from(
-                "--anchor-s must satisfy 1 <= anchor-s <= derived anchor length",
-            ));
+            return Err("--anchor-s must satisfy 1 <= anchor-s <= derived anchor length".into());
         }
 
         Ok(Self {
-            // input,
-            emit_path,
+            size_read,
             k,
             w,
             t,
@@ -179,72 +95,28 @@ impl Config {
             hash_count,
             base_seed,
             verify,
-            compare_classic,
-            classic_canonical,
         })
     }
 
-    fn usage() -> String {
-        r#"Usage: ocmm --input <fasta> --kmer <k> --window <w> [options]
-
-Options:
-  --anchor-s <s>        Length of the inner syncmer substring (default: max(1, t/2))
-  --r <value>           Lower bound for anchor length t in the mod-minimizer (default: 4)
-  --hashes <n>          Number of independent hash functions to combine (default: 4)
-  --seed <u64>          Base seed used to derive per-hash permutations (default: 0x9E3779B185EBCA87)
-  --emit <path|->       Emit tab-separated minimizers to the given file or stdout (-)
-  --verify              After sampling, verify every k-mer is covered by the selected minimizers
-  --compare-classic     Also run the classical multiminimizer with the same parameters (requires odd --window <= --kmer)
-  --classic-canonical   Use canonical mode for the classical multiminimizer comparison
-  -h, --help            Show this message
-"#
-        .to_string()
+    fn from_args(args: Args) -> Result<Self, String> {
+        Self::new(
+            args.size_read,
+            args.minimizer_size,
+            args.w,
+            args.r,
+            args.anchor_s,
+            args.hash_count,
+            args.base_seed.unwrap_or(0x9E37_79B1_85EB_CA87),
+            args.verify,
+        )
     }
 }
 
-#[derive(Debug)]
-struct Sequence {
-    name: String,
-    data: Vec<u8>,
-}
-
-fn read_fasta<P: AsRef<Path>>(path: P) -> io::Result<Vec<Sequence>> {
-    let file = File::open(path)?;
-    let reader = BufReader::new(file);
-    let mut sequences = Vec::new();
-    let mut current_name: Option<String> = None;
-    let mut current_seq: Vec<u8> = Vec::new();
-    use std::mem::take;
-    for line in reader.lines() {
-        let line = line?;
-        if line.starts_with('>') {
-            if let Some(name) = current_name.take() {
-                let data = take(&mut current_seq);
-                sequences.push(Sequence { name, data });
-            }
-            let header = line[1..].trim().to_string();
-            current_name = Some(if header.is_empty() {
-                format!("seq{}", sequences.len() + 1)
-            } else {
-                header
-            });
-        } else {
-            let trimmed = line.trim();
-            if !trimmed.is_empty() {
-                for byte in trimmed.as_bytes() {
-                    let upper = byte.to_ascii_uppercase();
-                    current_seq.push(upper);
-                }
-            }
-        }
-    }
-    if let Some(name) = current_name {
-        sequences.push(Sequence {
-            name,
-            data: current_seq,
-        });
-    }
-    Ok(sequences)
+fn main() {
+    let args = Args::parse();
+    let config = Config::from_args(args).expect("invalid values passed from the command line");
+    let result = run(config).expect("error during execution");
+    println!("{}", result);
 }
 
 fn random_dna_seq(len: usize) -> String {
@@ -256,61 +128,21 @@ fn random_dna_seq(len: usize) -> String {
     String::from_utf8(seq).unwrap()
 }
 
-fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    // let sequences = read_fasta(&config.input)?;
-    // if sequences.is_empty() {
-    //     return Err(Box::from("Input FASTA does not contain any sequences"));
-    // }
-    let mut writer: Option<Box<dyn Write>> = match config.emit_path.as_deref() {
-        Some("-") => Some(Box::new(BufWriter::new(io::stdout()))),
-        Some(path) => Some(Box::new(BufWriter::new(File::create(path)?))),
-        None => None,
-    };
-    if let Some(w) = writer.as_mut() {
-        writeln!(
-            w,
-            "#sequence\tcover_start\tcover_end\tminimizer_pos\tkmer\thash_ix"
-        )?;
-    }
-
+pub fn run(config: Config) -> Result<f64, String> {
     let seeds = build_seeds(config.base_seed, config.hash_count);
-    let mut summary = Summary::new(config.k);
-    let seq = random_dna_seq(SIZE_READ);
-    let writer_ref = writer.as_mut().map(|w| w.as_mut() as &mut dyn Write);
-    process_sequence(&seq, &config, &seeds, writer_ref, &mut summary)?;
-    if let Some(w) = writer.as_mut() {
-        w.flush()?;
-    }
-    let classic_stats =
-    
-    // if config.compare_classic {
-        // Some(
-            // run_classic_comparison(&sequences, &config)
-                // .map_err(|msg| Box::<dyn Error>::from(msg))?,
-        // )
-    // } else {
-        None
-    // }
-    ;
-    summary.print(classic_stats.as_ref());
-    Ok(())
+    let seq = random_dna_seq(config.size_read);
+    process_sequence(&seq, &config, &seeds)
 }
 
-fn process_sequence(
-    sequence: &str,
-    config: &Config,
-    seeds: &[Seed],
-    mut writer: Option<&mut dyn Write>,
-    summary: &mut Summary,
-) -> io::Result<()> {
+fn process_sequence(sequence: &str, config: &Config, seeds: &[Seed]) -> Result<f64, String> {
     let seq_len = sequence.len();
     let window_span = config.w + config.k - 1;
     if seq_len < window_span {
-        eprintln!(
+        eprintln!();
+        return Err(format!(
             "Sequence '{}' shorter than required span ({} < {}), skipping.",
             sequence, seq_len, window_span
-        );
-        return Ok(());
+        ));
     }
     let num_kmers = seq_len - config.k + 1;
     let num_windows = seq_len - window_span + 1;
@@ -318,42 +150,20 @@ fn process_sequence(
 
     let mut segments_per_hash: Vec<Vec<Segment>> = Vec::with_capacity(seeds.len());
     for seed in seeds.iter() {
-        let info = precompute_t_info(&sequence.as_bytes(), config.t, config.anchor_s, seed);
+        let info = precompute_t_info(sequence.as_bytes(), config.t, config.anchor_s, seed);
         let segments = build_segments_for_hash(info, config, num_windows, anchor_span);
         segments_per_hash.push(segments);
     }
 
-    let selections = select_segments(&segments_per_hash, num_kmers).map_err(|msg| {
-        io::Error::new(io::ErrorKind::Other, format!("{} ({})", msg, sequence))
-    })?;
+    let selections = select_segments(&segments_per_hash, num_kmers)?;
 
     if config.verify {
-        verify_coverage(&sequence, num_kmers, &selections)
-            .map_err(|msg| io::Error::new(io::ErrorKind::Other, msg))?;
+        verify_coverage(sequence, num_kmers, &selections)?;
     }
 
-    summary.total_kmers += num_kmers;
-    summary.total_windows += num_windows;
-    summary.sequences += 1;
-    summary.selected_minimizers += selections.len();
-
-    if let Some(w) = writer.as_mut() {
-        for sel in selections {
-            let kmer = &sequence.as_bytes()[sel.minimizer_pos..sel.minimizer_pos + config.k];
-            let kmer_str = String::from_utf8_lossy(kmer);
-            writeln!(
-                *w,
-                "{}\t{}\t{}\t{}\t{}\t{}",
-                sequence,
-                sel.cover_start,
-                sel.cover_end,
-                sel.minimizer_pos,
-                kmer_str,
-                sel.hash_idx
-            )?;
-        }
-    }
-    Ok(())
+    let nb_superkmer = selections.len();
+    let density = nb_superkmer as f64 / (config.size_read - config.k + 1) as f64;
+    Ok(density)
 }
 
 #[derive(Clone)]
@@ -627,227 +437,6 @@ fn mix64(mut z: u64) -> u64 {
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
     z ^ (z >> 31)
-}
-
-const MAX_CLASSIC_HASHES: usize = 16;
-
-struct ClassicStats {
-    minimizers: usize,
-}
-
-fn run_classic_comparison(sequences: &[Sequence], config: &Config) -> Result<ClassicStats, String> {
-    let minimizer_len = derive_classic_minimizer_len(config)?;
-    let window_span = config.w + config.k - 1;
-    let minimizers = if config.classic_canonical {
-        dispatch_classic_comparison::<true>(sequences, config, minimizer_len, window_span)?
-    } else {
-        dispatch_classic_comparison::<false>(sequences, config, minimizer_len, window_span)?
-    };
-    Ok(ClassicStats { minimizers })
-}
-
-fn derive_classic_minimizer_len(config: &Config) -> Result<usize, String> {
-    if config.w % 2 == 0 {
-        return Err(
-            "Classical comparison requires an odd --window (sticky minimizers need odd width)"
-                .to_string(),
-        );
-    }
-    let k_minus_w = config
-        .k
-        .checked_sub(config.w)
-        .ok_or_else(|| "Classical comparison requires --window <= --kmer".to_string())?;
-    Ok(k_minus_w + 1)
-}
-
-fn dispatch_classic_comparison<const CANONICAL: bool>(
-    sequences: &[Sequence],
-    config: &Config,
-    minimizer_len: usize,
-    window_span: usize,
-) -> Result<usize, String> {
-    let k = config.k;
-    match config.hash_count {
-        1 => Ok(classic_total::<CANONICAL, 1>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        2 => Ok(classic_total::<CANONICAL, 2>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        3 => Ok(classic_total::<CANONICAL, 3>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        4 => Ok(classic_total::<CANONICAL, 4>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        5 => Ok(classic_total::<CANONICAL, 5>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        6 => Ok(classic_total::<CANONICAL, 6>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        7 => Ok(classic_total::<CANONICAL, 7>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        8 => Ok(classic_total::<CANONICAL, 8>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        9 => Ok(classic_total::<CANONICAL, 9>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        10 => Ok(classic_total::<CANONICAL, 10>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        11 => Ok(classic_total::<CANONICAL, 11>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        12 => Ok(classic_total::<CANONICAL, 12>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        13 => Ok(classic_total::<CANONICAL, 13>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        14 => Ok(classic_total::<CANONICAL, 14>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        15 => Ok(classic_total::<CANONICAL, 15>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        16 => Ok(classic_total::<CANONICAL, 16>(
-            sequences,
-            k,
-            minimizer_len,
-            window_span,
-        )),
-        other => Err(format!(
-            "Classical comparison currently supports up to {MAX_CLASSIC_HASHES} hash functions (requested {other})"
-        )),
-    }
-}
-
-fn classic_total<const CANONICAL: bool, const N: usize>(
-    sequences: &[Sequence],
-    k: usize,
-    minimizer_len: usize,
-    window_span: usize,
-) -> usize {
-    sequences
-        .iter()
-        .filter(|seq| seq.data.len() >= window_span)
-        .map(|seq| classic_sequence_superkmers::<CANONICAL, N>(seq, k, minimizer_len))
-        .sum()
-}
-
-fn classic_sequence_superkmers<const CANONICAL: bool, const N: usize>(
-    sequence: &Sequence,
-    k: usize,
-    minimizer_len: usize,
-) -> usize {
-    let sanitized = sanitize_sequence_for_classic(&sequence.data);
-    compute_superkmers_linear_streaming::<N, CANONICAL>(sanitized.as_ref(), k, minimizer_len)
-        .map(|iter| iter.count())
-        .unwrap_or(0)
-}
-
-fn sanitize_sequence_for_classic(data: &[u8]) -> Cow<'_, [u8]> {
-    if data.iter().any(|base| *base == b'N') {
-        let mut owned = data.to_vec();
-        for base in &mut owned {
-            if *base == b'N' {
-                *base = b'A';
-            }
-        }
-        Cow::Owned(owned)
-    } else {
-        Cow::Borrowed(data)
-    }
-}
-
-struct Summary {
-    k:usize,
-    total_kmers: usize,
-    total_windows: usize,
-    selected_minimizers: usize,
-    sequences: usize,
-}
-
-impl Summary {
-    fn new(k:usize) -> Self {
-        Self {
-            k,
-            total_kmers: 0,
-            total_windows: 0,
-            selected_minimizers: 0,
-            sequences: 0,
-        }
-    }
-
-    fn print(&self, comparison: Option<&ClassicStats>) {
-        if self.total_kmers == 0 {
-            eprintln!("No windows long enough for the requested parameters.");
-            return;
-        }
-        if let Some(classic) = comparison {
-            println!("ocmm\t{}", self.selected_minimizers);
-            println!("classic\t{}", classic.minimizers);
-            let delta = self.selected_minimizers as i128 - classic.minimizers as i128;
-            println!("delta\t{}", delta);
-            if classic.minimizers > 0 {
-                println!(
-                    "ratio\t{:.6}",
-                    self.selected_minimizers as f64 / classic.minimizers as f64
-                );
-            }
-        } else {
-            // print density
-            println!("{}", self.selected_minimizers as f64 / (SIZE_READ-self.k+1) as f64);
-        }
-    }
 }
 
 #[cfg(test)]
