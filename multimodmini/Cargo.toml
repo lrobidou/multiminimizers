@@ -1,0 +1,22 @@
+[package]
+name = "ocmm"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+multiminimizers = { path = "../reference_multiminimizers" }
+
+[profile.dev]
+opt-level = 3
+debug = 0
+overflow-checks = false
+lto = "thin"
+codegen-units = 4
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+overflow-checks = false
