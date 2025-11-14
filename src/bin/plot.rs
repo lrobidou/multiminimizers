@@ -228,7 +228,7 @@ fn main() {
     let m_stop = 81;
     let step = 2;
 
-    for w in [3, 7, 15, 31, 63] {
+    for w in [3, 7, 15, 25, 31, 63] {
         let ms = (m_start..=m_stop).step_by(step);
         let filename_fixed_w = format!("data_fixed_w_{w}.json");
         let data = DataToPlot::compute_canonical_data_fixed_w(ms, &read, w);

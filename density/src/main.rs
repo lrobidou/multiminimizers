@@ -162,7 +162,7 @@ fn main() {
             } else if practicaly {
                 &[5, 12, 19]
             } else {
-                &[3, 7, 15, 31, 63][..]
+                &[3, 7, 15, 25, 31, 63][..]
             };
             let k_w_tp = ks
                 .iter()
