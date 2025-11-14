@@ -2,8 +2,13 @@ import json
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-import numpy as np
 from math import log
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
+import argparse
+from pathlib import Path
+
+plt.switch_backend("agg")
 
 
 TOOLS_PALETTE = {
@@ -24,6 +29,55 @@ PALETTE = [
     "#EDC948",
     "#59A14F",
 ]
+
+OCMM_DIR = Path("../multimodmini")
+
+
+def ocmm(minimizer_size, w, nb_hash):
+    import subprocess
+    import sys
+
+    # Path to the Rust ocmm project
+    project_path = OCMM_DIR
+
+    # Compile the Rust project
+    result = subprocess.run(
+        ["cargo", "build", "--release"],
+        cwd=project_path,
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        print("Compilation failed:")
+        print(result.stderr)
+        sys.exit(1)
+
+    # Path to the compiled binary
+    binary_path = project_path / "target" / "release" / project_path.name
+
+    # Execute the binary
+    run_result = subprocess.run(
+        [
+            str(binary_path),
+            "--minimizer-size",
+            str(minimizer_size),
+            "--window",
+            str(w),
+            "--hashes",
+            str(nb_hash),
+            "--verify",
+            "--size-read",
+            str(50000),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    # print(run_result.stderr)
+    assert not run_result.stderr
+    res = float(run_result.stdout.strip())
+    return res
 
 
 def multimini_load(filename):
@@ -83,7 +137,11 @@ def read(file):
     return pd.json_normalize(data)
 
 
-def plot(data):
+def run_ocmm(k, w, nb_hash):
+    return ocmm("/home/lrobidou/Téléchargements/Multimodmini/ocmm", k, w, nb_hash)
+
+
+def plot(data, plot_mocmm: bool):
     if isinstance(data, str):
         data = read(data)
     df = data
@@ -111,13 +169,28 @@ def plot(data):
 
         densities, minimizer_sizes = multimini(f"../data_fixed_w_{w}.json")
         for nb_hash, nb_hash_data in enumerate(densities, start=1):
-            if nb_hash > 1:
+            if not plot_mocmm:
+                if nb_hash > 1:
+                    plt.plot(
+                        minimizer_sizes,
+                        nb_hash_data,
+                        "--",
+                        color=PALETTE[nb_hash - 2],
+                        label=f"Multiminimizers ({nb_hash})",
+                    )
+            else:
+                ocmms = []
+
+                run_ocmm_partial = partial(ocmm, w=w, nb_hash=nb_hash)
+
+                with ProcessPoolExecutor(79) as executor:
+                    ocmms = list(executor.map(run_ocmm_partial, ks))
                 plt.plot(
-                    minimizer_sizes,
-                    nb_hash_data,
+                    ks,
+                    ocmms,
                     "--",
                     color=PALETTE[nb_hash - 2],
-                    label=f"Multiminimizers ({nb_hash})",
+                    label=f"OCMM ({nb_hash})",
                 )
 
         plt.plot(
@@ -127,6 +200,8 @@ def plot(data):
             color=PALETTE[-1],
             label="Lower bound for forward schemes",
         )
+
+        # plt.xlim(ks.start, 31)
 
         plt.title(f"Minimizer density on random text ($w={w}$)")
         plt.xlabel("Minimizer length $m$")
@@ -145,10 +220,20 @@ def plot(data):
         plt.legend(handles, labels, bbox_to_anchor=(1.02, 1), loc="upper left")
 
         plt.savefig(f"density_{s}_w_{w}.pdf", bbox_inches="tight", dpi=300)
-        # plt.savefig(f"density_{s}_w_{w}.png", bbox_inches="tight", dpi=300)
         plt.clf()
         plt.close()
         sns.reset_defaults()
 
 
-plot("density_4.json")
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--plot_mocmm", default=False, action="store_true")
+    args = parser.parse_args()
+
+    plot_mocmm = args.plot_mocmm
+
+    plot("density_4.json", plot_mocmm)
+
+
+if __name__ == "__main__":
+    main()
