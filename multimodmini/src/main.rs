@@ -7,6 +7,9 @@ use std::path::Path;
 
 use multiminimizers::compute_superkmers_linear_streaming;
 
+
+const SIZE_READ:usize = 50_000;
+
 fn main() -> Result<(), Box<dyn Error>> {
     let config = Config::from_env()?;
     run(config)?;
@@ -15,7 +18,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 #[derive(Debug)]
 struct Config {
-    input: String,
+    // input: String,
     emit_path: Option<String>,
     k: usize,
     w: usize,
@@ -130,7 +133,7 @@ impl Config {
             }
         }
 
-        let input = input.ok_or_else(|| Config::usage())?;
+        // let input = input.ok_or_else(|| Config::usage())?;
         let k = k.ok_or_else(|| "Missing required argument --kmer".to_string())?;
         let w = w.ok_or_else(|| "Missing required argument --window".to_string())?;
         if k == 0 || w == 0 {
@@ -167,7 +170,7 @@ impl Config {
         }
 
         Ok(Self {
-            input,
+            // input,
             emit_path,
             k,
             w,
@@ -244,11 +247,20 @@ fn read_fasta<P: AsRef<Path>>(path: P) -> io::Result<Vec<Sequence>> {
     Ok(sequences)
 }
 
+fn random_dna_seq(len: usize) -> String {
+    use rand::prelude::IndexedRandom;
+
+    let bases = [b'A', b'C', b'G', b'T'];
+    let mut rng = rand::rng();
+    let seq: Vec<u8> = (0..len).map(|_| *bases.choose(&mut rng).unwrap()).collect();
+    String::from_utf8(seq).unwrap()
+}
+
 fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    let sequences = read_fasta(&config.input)?;
-    if sequences.is_empty() {
-        return Err(Box::from("Input FASTA does not contain any sequences"));
-    }
+    // let sequences = read_fasta(&config.input)?;
+    // if sequences.is_empty() {
+    //     return Err(Box::from("Input FASTA does not contain any sequences"));
+    // }
     let mut writer: Option<Box<dyn Write>> = match config.emit_path.as_deref() {
         Some("-") => Some(Box::new(BufWriter::new(io::stdout()))),
         Some(path) => Some(Box::new(BufWriter::new(File::create(path)?))),
@@ -262,39 +274,41 @@ fn run(config: Config) -> Result<(), Box<dyn Error>> {
     }
 
     let seeds = build_seeds(config.base_seed, config.hash_count);
-    let mut summary = Summary::new();
-    for seq in &sequences {
-        let writer_ref = writer.as_mut().map(|w| w.as_mut() as &mut dyn Write);
-        process_sequence(seq, &config, &seeds, writer_ref, &mut summary)?;
-    }
+    let mut summary = Summary::new(config.k);
+    let seq = random_dna_seq(SIZE_READ);
+    let writer_ref = writer.as_mut().map(|w| w.as_mut() as &mut dyn Write);
+    process_sequence(&seq, &config, &seeds, writer_ref, &mut summary)?;
     if let Some(w) = writer.as_mut() {
         w.flush()?;
     }
-    let classic_stats = if config.compare_classic {
-        Some(
-            run_classic_comparison(&sequences, &config)
-                .map_err(|msg| Box::<dyn Error>::from(msg))?,
-        )
-    } else {
+    let classic_stats =
+    
+    // if config.compare_classic {
+        // Some(
+            // run_classic_comparison(&sequences, &config)
+                // .map_err(|msg| Box::<dyn Error>::from(msg))?,
+        // )
+    // } else {
         None
-    };
+    // }
+    ;
     summary.print(classic_stats.as_ref());
     Ok(())
 }
 
 fn process_sequence(
-    sequence: &Sequence,
+    sequence: &str,
     config: &Config,
     seeds: &[Seed],
     mut writer: Option<&mut dyn Write>,
     summary: &mut Summary,
 ) -> io::Result<()> {
-    let seq_len = sequence.data.len();
+    let seq_len = sequence.len();
     let window_span = config.w + config.k - 1;
     if seq_len < window_span {
         eprintln!(
             "Sequence '{}' shorter than required span ({} < {}), skipping.",
-            sequence.name, seq_len, window_span
+            sequence, seq_len, window_span
         );
         return Ok(());
     }
@@ -304,17 +318,17 @@ fn process_sequence(
 
     let mut segments_per_hash: Vec<Vec<Segment>> = Vec::with_capacity(seeds.len());
     for seed in seeds.iter() {
-        let info = precompute_t_info(&sequence.data, config.t, config.anchor_s, seed);
+        let info = precompute_t_info(&sequence.as_bytes(), config.t, config.anchor_s, seed);
         let segments = build_segments_for_hash(info, config, num_windows, anchor_span);
         segments_per_hash.push(segments);
     }
 
     let selections = select_segments(&segments_per_hash, num_kmers).map_err(|msg| {
-        io::Error::new(io::ErrorKind::Other, format!("{} ({})", msg, sequence.name))
+        io::Error::new(io::ErrorKind::Other, format!("{} ({})", msg, sequence))
     })?;
 
     if config.verify {
-        verify_coverage(&sequence.name, num_kmers, &selections)
+        verify_coverage(&sequence, num_kmers, &selections)
             .map_err(|msg| io::Error::new(io::ErrorKind::Other, msg))?;
     }
 
@@ -325,12 +339,12 @@ fn process_sequence(
 
     if let Some(w) = writer.as_mut() {
         for sel in selections {
-            let kmer = &sequence.data[sel.minimizer_pos..sel.minimizer_pos + config.k];
+            let kmer = &sequence.as_bytes()[sel.minimizer_pos..sel.minimizer_pos + config.k];
             let kmer_str = String::from_utf8_lossy(kmer);
             writeln!(
                 *w,
                 "{}\t{}\t{}\t{}\t{}\t{}",
-                sequence.name,
+                sequence,
                 sel.cover_start,
                 sel.cover_end,
                 sel.minimizer_pos,
@@ -795,6 +809,7 @@ fn sanitize_sequence_for_classic(data: &[u8]) -> Cow<'_, [u8]> {
 }
 
 struct Summary {
+    k:usize,
     total_kmers: usize,
     total_windows: usize,
     selected_minimizers: usize,
@@ -802,8 +817,9 @@ struct Summary {
 }
 
 impl Summary {
-    fn new() -> Self {
+    fn new(k:usize) -> Self {
         Self {
+            k,
             total_kmers: 0,
             total_windows: 0,
             selected_minimizers: 0,
@@ -828,7 +844,8 @@ impl Summary {
                 );
             }
         } else {
-            println!("{}", self.selected_minimizers);
+            // print density
+            println!("{}", self.selected_minimizers as f64 / (SIZE_READ-self.k+1) as f64);
         }
     }
 }
