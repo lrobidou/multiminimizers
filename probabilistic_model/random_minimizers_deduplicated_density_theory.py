@@ -26,7 +26,7 @@ def deduplicated_density(k,m):
 ################################################ PARAMETERS
 
 min_k = 2
-max_k = 6
+max_k = 8
 
 ################################################
 
@@ -76,10 +76,12 @@ for k in range(min_k,max_k+1):
     ax.plot(ws[:len(kdic[k])],kdic[k],marker='o',ls='dotted',label=r'$k='+str(k)+'$')
 
 ax.plot(ws,densities,label=r'$2/(w+1)$')
+ax.set_xlabel(r'$w$',fontsize=fontsize)
+ax.set_ylabel(r'$d^\ast$',fontsize=fontsize)
 
 ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 ax.tick_params(axis='both', which='major', labelsize=fontsize)
-leg=ax.legend(fontsize=fontsize)
+leg=ax.legend(fontsize=fontsize,ncol=2)
 for line in leg.get_lines():
     line.set_linewidth(4.0)
 
