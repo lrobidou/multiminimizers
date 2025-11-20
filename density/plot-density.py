@@ -30,6 +30,17 @@ PALETTE = [
     "#59A14F",
 ]
 
+LABEL_ORDER = [
+    "RandomMinimizer",
+    "ModMinimizer",
+    "Miniception",
+    "DoubleDecycling",
+    "GreedyMini",
+    "Lower",
+    "Multiminimizers",
+    "MOCMM",
+]
+
 OCMM_DIR = Path("../multimodmini")
 
 
@@ -213,9 +224,8 @@ def plot(data, plot_mocmm: bool):
 
         handles, labels = plt.gca().get_legend_handles_labels()
         pairs = list(sorted(zip(labels, handles)))
-        pairs.insert(0, pairs.pop())
-        pairs.append(pairs.pop(3))
-        pairs[2], pairs[3] = pairs[3], pairs[2]
+        f = lambda p: (LABEL_ORDER.index(p[0].split(" ")[0]), p[0])
+        pairs.sort(key=f)
         labels, handles = zip(*pairs)
         plt.legend(handles, labels, bbox_to_anchor=(1.02, 1), loc="upper left")
 
