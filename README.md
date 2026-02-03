@@ -66,7 +66,7 @@ python3 benches/plot_bench.py results.jsonl # shows the graph "time wrt nb hash 
 cargo run --release  # generates "data_fixed_w_{w}.json
 cd density
 cargo r -r -- eval -o density_4.json  # generates "density_4.json"
-python3 plot-density.py  # loads every json files and save the plot to "density_4_w_{w}.pdf
+python3 plot-density.py --plot_only_small_values  # loads every json files and save the plot to "density_4_w_{w}.pdf
 ```
 
 <!-- ## Index and query
