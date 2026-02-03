@@ -142,16 +142,19 @@ def multimini(filename):
         if ws[i] != ws[0]:
             print("internal error")
             exit()
-
     assert is_sorted(minimizer_sizes)
-    assert is_sorted(minimizer_sizes)
-
     return densities, minimizer_sizes
 
 
+def simple_lower_bound(w, k):
+    """Lower bound for forward schemes (theorem 1 from https://doi.org/10.1101/2024.09.06.611668)"""
+    return ((w + k + w - 1) // w) / (w + k)
+
+
 def lower_bound(w, k):
-    """Lower bound for forward schemes (https://doi.org/10.1101/2024.09.06.611668)"""
-    return 1 / (w + k) * ((w + k + (w - 1)) // w)
+    """Improved lower bound for forward schemes (theorem 2 from https://doi.org/10.1101/2024.09.06.611668)"""
+    k_ = ((k - 1 + w - 1) // w) * w + 1
+    return max(simple_lower_bound(w, k), simple_lower_bound(w, k_))
 
 
 def read(file):
@@ -169,8 +172,8 @@ def plot(data, plot_mocmm: bool, plot_only_small_values: bool):
 
     from matplotlib import rc
 
-    rc("font", **{"family": "serif", "serif": ["Computer Modern"]})
-    rc("text", usetex=True)
+    # rc("font", **{"family": "serif", "serif": ["Computer Modern"]})
+    # rc("text", usetex=True)
     # fontsize = 30
 
     for w in ws:
@@ -222,6 +225,7 @@ def plot(data, plot_mocmm: bool, plot_only_small_values: bool):
             ks,
             [lower_bound(w, k) for k in ks],
             ":",
+            linewidth=3,
             color=PALETTE[-1],
             label="Lower bound for forward schemes",
         )
