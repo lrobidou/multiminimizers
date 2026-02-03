@@ -7,6 +7,7 @@ from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 import argparse
 from pathlib import Path
+from matplotlib.ticker import MaxNLocator
 
 plt.switch_backend("agg")
 
@@ -42,6 +43,17 @@ LABEL_ORDER = [
 ]
 
 OCMM_DIR = Path("../multimodmini")
+
+
+def parse_tuple(s):
+    """
+    "(1.0,2.0)" -> (1.0, 2.0)"
+    """
+    s = s.strip()[1:-1]
+    x_str, y_str = s.split(",")
+    x = float(x_str)
+    y = float(y_str)
+    return (x, y)
 
 
 def ocmm(minimizer_size, w, nb_hash):
@@ -87,8 +99,8 @@ def ocmm(minimizer_size, w, nb_hash):
 
     # print(run_result.stderr)
     assert not run_result.stderr
-    res = float(run_result.stdout.strip())
-    return res
+    res = parse_tuple(run_result.stdout.strip())
+    return res[0]
 
 
 def multimini_load(filename):
@@ -148,16 +160,18 @@ def read(file):
     return pd.json_normalize(data)
 
 
-def run_ocmm(k, w, nb_hash):
-    return ocmm("/home/lrobidou/Téléchargements/Multimodmini/ocmm", k, w, nb_hash)
-
-
-def plot(data, plot_mocmm: bool):
+def plot(data, plot_mocmm: bool, plot_only_small_values: bool):
     if isinstance(data, str):
         data = read(data)
     df = data
     s = df["sigma"].unique()[0]
     ws = df.w.unique()
+
+    from matplotlib import rc
+
+    rc("font", **{"family": "serif", "serif": ["Computer Modern"]})
+    rc("text", usetex=True)
+    # fontsize = 30
 
     for w in ws:
         df_filtered = df[df["w"] == w].drop(columns=["w"])
@@ -201,7 +215,7 @@ def plot(data, plot_mocmm: bool):
                     ocmms,
                     "--",
                     color=PALETTE[nb_hash - 2],
-                    label=f"OCMM ({nb_hash})",
+                    label=f"MOCMM ({nb_hash})",
                 )
 
         plt.plot(
@@ -212,7 +226,8 @@ def plot(data, plot_mocmm: bool):
             label="Lower bound for forward schemes",
         )
 
-        # plt.xlim(ks.start, 31)
+        if plot_only_small_values:
+            plt.xlim(ks.start, 31)
 
         plt.title(f"Minimizer density on random text ($w={w}$)")
         plt.xlabel("Minimizer length $m$")
@@ -223,12 +238,22 @@ def plot(data, plot_mocmm: bool):
         )
 
         handles, labels = plt.gca().get_legend_handles_labels()
-        pairs = list(sorted(zip(labels, handles)))
-        f = lambda p: (LABEL_ORDER.index(p[0].split(" ")[0]), p[0])
-        pairs.sort(key=f)
-        labels, handles = zip(*pairs)
-        plt.legend(handles, labels, bbox_to_anchor=(1.02, 1), loc="upper left")
+        # pairs = list(sorted(zip(labels, handles)))
+        # pairs.insert(0, pairs.pop())
+        # pairs.append(pairs.pop(3))
+        # pairs[2], pairs[3] = pairs[3], pairs[2]
+        # labels, handles = zip(*pairs)
+        plt.legend(
+            handles,
+            labels,
+            bbox_to_anchor=(0.5, -0.15),
+            loc="upper center",
+            ncol=2,
+        )
 
+        ax = plt.gca()
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        # plt.tight_layout()
         plt.savefig(f"density_{s}_w_{w}.pdf", bbox_inches="tight", dpi=300)
         plt.clf()
         plt.close()
@@ -238,11 +263,13 @@ def plot(data, plot_mocmm: bool):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--plot_mocmm", default=False, action="store_true")
+    parser.add_argument("--plot_only_small_values", default=False, action="store_true")
     args = parser.parse_args()
 
     plot_mocmm = args.plot_mocmm
+    plot_only_small_values = args.plot_only_small_values
 
-    plot("density_4.json", plot_mocmm)
+    plot("density_4.json", plot_mocmm, plot_only_small_values)
 
 
 if __name__ == "__main__":

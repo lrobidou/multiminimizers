@@ -103,6 +103,76 @@ def plot_single_k(content, outfilename):
     plt.clf()
 
 
+def plot_single_k_paper(content_all_k, outfilename):
+    PALETTE = [
+        "#4E79A7",
+        "#76B7B2",
+        "#B07AA1",
+        "#FF9DA7",
+        "#E15759",
+        "#F28E2B",
+        "#EDC948",
+        "#59A14F",
+    ]
+
+    from matplotlib import rc
+    from matplotlib.ticker import MaxNLocator
+
+    rc("font", **{"family": "serif", "serif": ["Computer Modern"]})
+    rc("text", usetex=True)
+    fontsize = 30
+
+    plt.rcParams["figure.figsize"] = (12, 6)
+
+    keys = [int(k) for k in content_all_k.keys()]
+    keys.sort()
+    keys = [str(k) for k in keys]
+    for i, k in enumerate(keys):
+        content = content_all_k[k]
+        k = content["k"]
+        limit_overhead = content["limit_overhead"]
+        overhead = content["overhead"]
+        limit_avg_superkmer_size = content["limit_avg_superkmer_size"]
+        avg_superkmer_size = content["avg_superkmer_size"]
+        limit_nb_superkmer = content["limit_nb_superkmer"]
+        nb_superkmer = content["nb_superkmer"]
+
+        # fig, axes = plt.subplots(4, 2, figsize=(12, 6))
+        # fig.canvas.manager.set_window_title(f"{filename=}, {k=}, {m=}")
+
+        # let's round everything
+        precision = 3
+        limit_overhead = round(limit_overhead, precision)
+        overhead = roundvec(overhead, precision)
+
+        limit_overhead = 2 * limit_overhead
+        overhead = [2 * x for x in overhead]
+
+        limit_avg_superkmer_size = round(limit_avg_superkmer_size, precision)
+        avg_superkmer_size = roundvec(avg_superkmer_size, precision)
+        limit_nb_superkmer = round(limit_nb_superkmer, precision)
+        nb_superkmer = roundvec(nb_superkmer, precision)
+
+        plt.plot(range1(overhead), overhead, "+--", color=PALETTE[i], label=f"$k={k}$")
+        # plt.plot(
+        #     range1(overhead),
+        #     [limit_overhead] * len(overhead),
+        #     color=PALETTE[i],
+        # )
+    # plt.title("number of bits per $k$-mer in a random read", fontsize=fontsize)
+    plt.xlabel("Number of hash functions", fontsize=fontsize)
+    plt.ylabel("Bits / $k$-mer", fontsize=fontsize)
+    plt.tick_params(axis="both", which="major", labelsize=fontsize)
+    plt.legend(loc="upper right", fontsize=fontsize, ncol=2)
+
+    ax = plt.gca()
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    plt.tight_layout()
+    # plt.show()
+    plt.savefig(outfilename)
+    plt.clf()
+
+
 def plot_vs_w(content_all_k, outfilename):
     ws = []
     densities = [[] for _ in range(16)]
@@ -137,26 +207,35 @@ def plot_vs_w(content_all_k, outfilename):
 
 def main():
     # plot density figure
-    for filename in filenames:
-        with open(filename, "r") as fichier:
-            content_all_k = json.load(fichier)
-            content_all_k = content_all_k["data"]
-            outfilename = "analyse/plot_density" + filename.removesuffix(".json")
-            plot_vs_w(content_all_k, outfilename)
+    # for filename in filenames:
+    #     with open(filename, "r") as fichier:
+    #         content_all_k = json.load(fichier)
+    #         content_all_k = content_all_k["data"]
+    #         outfilename = "analyse/plot_density" + filename.removesuffix(".json")
+    #         plot_vs_w(content_all_k, outfilename)
 
-    # plot single k figures
+    # # plot single k figures
+    # for filename in filenames:
+    #     with open(filename, "r") as fichier:
+    #         content_all_k = json.load(fichier)
+    #         content_all_k = content_all_k["data"]
+    #         for k in content_all_k:
+    #             content = content_all_k[k]
+    #             # print(content)
+    #             k = int(k)
+    #             outfilename = (
+    #                 "analyse/analyse_" + filename.removesuffix(".json") + f"_{k=}.png"
+    #             )
+    #             plot_single_k(content, outfilename)
+
     for filename in filenames:
         with open(filename, "r") as fichier:
             content_all_k = json.load(fichier)
             content_all_k = content_all_k["data"]
-            for k in content_all_k:
-                content = content_all_k[k]
-                # print(content)
-                k = int(k)
-                outfilename = (
-                    "analyse/analyse_" + filename.removesuffix(".json") + f"_{k=}.png"
-                )
-                plot_single_k(content, outfilename)
+            outfilename = (
+                "analyse/single_plot_" + filename.removesuffix(".json") + ".pdf"
+            )
+            plot_single_k_paper(content_all_k, outfilename)
 
 
 if __name__ == "__main__":

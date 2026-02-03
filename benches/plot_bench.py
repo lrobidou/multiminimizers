@@ -2,6 +2,8 @@ import json
 import matplotlib.pyplot as plt
 import numpy as np
 import argparse
+from matplotlib import rc
+from matplotlib.ticker import MaxNLocator
 
 
 def r2(y, y_pred):
@@ -38,6 +40,11 @@ def main():
 
     les_x = range(1, len(time_nano_second) + 1)
 
+    rc("font", **{"family": "serif", "serif": ["Computer Modern"]})
+    rc("text", usetex=True)
+    fontsize = 30
+
+    plt.rcParams["figure.figsize"] = (12, 6)
     plt.plot(les_x, time_nano_second, "X--", label="raw data")
 
     coef = np.polyfit(les_x, time_nano_second, 1)
@@ -48,16 +55,24 @@ def main():
         les_x,
         time_nano_second_pred,
         "-",
-        label=f"linear regression (R2= {r2(time_nano_second, time_nano_second_pred)})",
+        label=f"linear regression (R2= {round(r2(time_nano_second, time_nano_second_pred), 5)})",
     )
-    plt.xlabel("number of hash function")
-    plt.ylabel("time (ns)")
+    plt.xlabel("number of hash function", fontsize=fontsize)
+    plt.ylabel("time (ns)", fontsize=fontsize)
     plt.ymin = 0
-    plt.legend(loc="best")
+    # plt.legend(loc="best", fontsize=fontsize)
     plt.title(
-        "Time required to iterate over the super-k-mers with regard to the number of hash functions"
+        "Time required to iterate over the super-k-mers\nwith regard to the number of hash functions",
+        fontsize=fontsize,
     )
-    plt.show()
+    # plt.show()
+    ax = plt.gca()
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    plt.legend(loc="best", fontsize=fontsize)
+    plt.tick_params(axis="both", which="major", labelsize=fontsize)
+
+    plt.tight_layout()
+    plt.savefig("time_vs_N.pdf")
 
 
 if __name__ == "__main__":

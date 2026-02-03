@@ -1,4 +1,5 @@
 use clap::Parser;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Parser)]
 #[command(name = "ocmm")]
@@ -116,7 +117,7 @@ fn main() {
     let args = Args::parse();
     let config = Config::from_args(args).expect("invalid values passed from the command line");
     let result = run(config).expect("error during execution");
-    println!("{}", result);
+    println!("{:?}", result);
 }
 
 fn random_dna_seq(len: usize) -> String {
@@ -128,13 +129,13 @@ fn random_dna_seq(len: usize) -> String {
     String::from_utf8(seq).unwrap()
 }
 
-pub fn run(config: Config) -> Result<f64, String> {
+pub fn run(config: Config) -> Result<(f64, f64), String> {
     let seeds = build_seeds(config.base_seed, config.hash_count);
     let seq = random_dna_seq(config.size_read);
     process_sequence(&seq, &config, &seeds)
 }
 
-fn process_sequence(sequence: &str, config: &Config, seeds: &[Seed]) -> Result<f64, String> {
+fn process_sequence(sequence: &str, config: &Config, seeds: &[Seed]) -> Result<(f64, f64), String> {
     let seq_len = sequence.len();
     let window_span = config.w + config.k - 1;
     if seq_len < window_span {
@@ -163,7 +164,9 @@ fn process_sequence(sequence: &str, config: &Config, seeds: &[Seed]) -> Result<f
 
     let nb_superkmer = selections.len();
     let density = nb_superkmer as f64 / (config.size_read - config.k + 1) as f64;
-    Ok(density)
+    let bit_per_kmer_in_superkmer =
+        get_bit_per_kmer_in_superkmer(seq_len, config.k, config.w, &selections).unwrap();
+    Ok((density, bit_per_kmer_in_superkmer))
 }
 
 #[derive(Clone)]
@@ -206,7 +209,7 @@ struct SegmentState {
     last_window: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct Selection {
     hash_idx: usize,
     minimizer_pos: usize,
@@ -384,6 +387,33 @@ fn verify_coverage(
         ));
     }
     Ok(())
+}
+
+fn get_bit_per_kmer_in_superkmer(
+    seq_len: usize,
+    k: usize,
+    w: usize,
+    selections: &[Selection],
+) -> Result<f64, String> {
+    // Warning: I'm using a different notation here, because I'm more used to it
+    let m = k;
+    let k = w + m - 1;
+    let mut bit_size = 0;
+    let nb_kmers = seq_len - k + 1;
+    for sel in selections {
+        if sel.cover_start >= sel.cover_end || sel.cover_end > seq_len - m + 1 {
+            return Err(format!(
+                "Invalid coverage range [{}..{}) for hash {} on sequence of {} kmers",
+                sel.cover_start, sel.cover_end, sel.hash_idx, nb_kmers
+            ));
+        }
+        let nb_mini_covered = sel.cover_end - sel.cover_start;
+        let size_superkmer_in_bases = nb_mini_covered + k - 1;
+        let size_superkmer_in_bits = 2 * size_superkmer_in_bases;
+        bit_size += size_superkmer_in_bits;
+    }
+    let bit_per_kmer_in_superkmer = bit_size as f64 / seq_len as f64;
+    Ok(bit_per_kmer_in_superkmer)
 }
 
 fn choose_anchor(infos: &[TMerInfo], start: usize, length: usize) -> usize {
