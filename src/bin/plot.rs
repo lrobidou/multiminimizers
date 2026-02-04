@@ -5,11 +5,7 @@ use multiminimizers::{
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs};
 
-type Minimizer = u64;
-
 use itertools::Itertools;
-
-const NB_HASH: usize = 8;
 
 #[derive(Serialize, Deserialize)]
 struct DataToPlotForAK {
@@ -38,8 +34,6 @@ impl DataToPlotForAK {
 
         let limit_overhead = (2.0 * k as f64 - m as f64) / (k - m + 1) as f64;
 
-        // println!("k = {k}, limit_overhead = {limit_overhead}");
-
         Self {
             size_read,
             k,
@@ -53,12 +47,7 @@ impl DataToPlotForAK {
         }
     }
 
-    pub fn from_array(
-        size_read: usize,
-        k: usize,
-        m: usize,
-        arr: [(f64, f64, usize); NB_HASH],
-    ) -> Self {
+    pub fn from_vec(size_read: usize, k: usize, m: usize, arr: Vec<(f64, f64, usize)>) -> Self {
         let mut overheads = vec![];
         let mut avgs_superkmer_size = vec![];
         let mut nbs_superkmer = vec![];
@@ -82,32 +71,12 @@ impl DataToPlotForAK {
 #[derive(Serialize, Deserialize)]
 struct DataToPlot {
     data: HashMap<usize, DataToPlotForAK>,
+    ns: Vec<usize>,
 }
 
 impl DataToPlot {
-    pub fn new(data: HashMap<usize, DataToPlotForAK>) -> Self {
-        Self { data }
-    }
-
-    pub fn compute_canonical_data(
-        k_iter: impl Iterator<Item = usize>,
-        read: &str,
-        m: usize,
-    ) -> Self {
-        let raw_data_for_multiple_ks = k_iter
-            .map(|k| {
-                let arr: [(f64, f64, usize); NB_HASH] = collect_macro::collect!((
-                    8,
-                    canonical_get_overhead_and_avg_size_and_nb_of_sk,
-                    &read,
-                    k,
-                    m
-                ));
-                (k, DataToPlotForAK::from_array(read.len(), k, m, arr))
-            })
-            .collect();
-
-        Self::new(raw_data_for_multiple_ks)
+    pub fn new(data: HashMap<usize, DataToPlotForAK>, ns: Vec<usize>) -> Self {
+        Self { data, ns }
     }
 
     pub fn compute_canonical_data_fixed_w(
@@ -115,43 +84,24 @@ impl DataToPlot {
         read: &str,
         w: usize,
     ) -> Self {
+        let ns = vec![2, 3, 4, 8, 16, 32];
         let raw_data_for_multiple_ks = m_iter
             .map(|m| {
                 // w = k - m + 1
                 let k = w + m - 1;
-                let arr: [(f64, f64, usize); NB_HASH] = collect_macro::collect!((
-                    8,
-                    canonical_get_overhead_and_avg_size_and_nb_of_sk,
-                    &read,
-                    k,
-                    m
-                ));
-                (k, DataToPlotForAK::from_array(read.len(), k, m, arr))
+                let arr = vec![
+                    canonical_get_stats::<2>(read, k, m),
+                    canonical_get_stats::<3>(read, k, m),
+                    canonical_get_stats::<4>(read, k, m),
+                    canonical_get_stats::<8>(read, k, m),
+                    canonical_get_stats::<16>(read, k, m),
+                    canonical_get_stats::<32>(read, k, m),
+                ];
+                (k, DataToPlotForAK::from_vec(read.len(), k, m, arr))
             })
             .collect();
 
-        Self::new(raw_data_for_multiple_ks)
-    }
-
-    pub fn compute_non_canonical_data(
-        k_iter: impl Iterator<Item = usize>,
-        read: &str,
-        m: usize,
-    ) -> Self {
-        let raw_data_for_multiple_ks = k_iter
-            .map(|k| {
-                let arr: [(f64, f64, usize); NB_HASH] = collect_macro::collect!((
-                    8,
-                    non_canonical_get_overhead_and_avg_size_and_nb_of_sk,
-                    &read,
-                    k,
-                    m
-                ));
-                (k, DataToPlotForAK::from_array(read.len(), k, m, arr))
-            })
-            .collect();
-
-        Self::new(raw_data_for_multiple_ks)
+        Self::new(raw_data_for_multiple_ks, ns)
     }
 
     pub fn write_to_file(&self, filename: &str) {
@@ -174,28 +124,8 @@ fn nb_base_in_representation(v: &[Superkmer<'_, NoAnchor>]) -> usize {
     v.iter().map(|sk| sk.superkmer.len()).sum()
 }
 
-fn canonical_get_overhead_and_avg_size_and_nb_of_sk<const N: usize>(
-    read: &str,
-    k: usize,
-    m: usize,
-) -> (f64, f64, usize) {
+fn canonical_get_stats<const N: usize>(read: &str, k: usize, m: usize) -> (f64, f64, usize) {
     let superkmer_iter = compute_superkmers_linear_streaming::<N, true>(read.as_bytes(), k, m);
-    let superkmers: Vec<Superkmer<'_, NoAnchor>> = superkmer_iter.unwrap().collect_vec();
-
-    let nb_base = nb_base_in_representation(&superkmers);
-    let overhead = nb_base as f64 / read.len() as f64;
-    let avg_size = nb_base as f64 / superkmers.len() as f64;
-    let nb_sk = superkmers.len();
-
-    (overhead, avg_size, nb_sk)
-}
-
-fn non_canonical_get_overhead_and_avg_size_and_nb_of_sk<const N: usize>(
-    read: &str,
-    k: usize,
-    m: usize,
-) -> (f64, f64, usize) {
-    let superkmer_iter = compute_superkmers_linear_streaming::<N, false>(read.as_bytes(), k, m);
     let superkmers: Vec<Superkmer<'_, NoAnchor>> = superkmer_iter.unwrap().collect_vec();
 
     let nb_base = nb_base_in_representation(&superkmers);
@@ -208,22 +138,7 @@ fn non_canonical_get_overhead_and_avg_size_and_nb_of_sk<const N: usize>(
 
 fn main() {
     let size_read = 5_000_000;
-    let m = 21;
     let read = random_dna_seq(size_read);
-    let k_start = 31;
-    let k_stop = 201;
-    let step = 50;
-
-    // let ks = (k_start..=k_stop).step_by(step);
-    // let filename_canonical = "data_canonical.json";
-    // let data = DataToPlot::compute_canonical_data(ks, &read, m);
-    // data.write_to_file(filename_canonical);
-
-    // let ks = (k_start..=k_stop).step_by(step);
-    // let filename_non_canonical = "data_non_canonical.json";
-    // let data = DataToPlot::compute_non_canonical_data(ks, &read, m);
-    // data.write_to_file(filename_non_canonical);
-
     let m_start = 5;
     let m_stop = 81;
     let step = 2;
@@ -234,105 +149,4 @@ fn main() {
         let data = DataToPlot::compute_canonical_data_fixed_w(ms, &read, w);
         data.write_to_file(&filename_fixed_w);
     }
-
-    // println!("output written to {filename_canonical} and {filename_non_canonical}");
 }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-// fn calculate_hash<T: std::hash::Hash>(t: &T, seed: u64) -> u64 {
-//     let mut s = DefaultHashBuilder::with_seed(seed);
-//     t.hash(&mut s);
-//     s.finish()
-// }
-
-// Wrapper around a Hasher that prints when hashing.
-// struct DebugHasher<H> {
-//     inner: H,
-// }
-
-// impl<H: Hasher> Hasher for DebugHasher<H> {
-//     fn finish(&self) -> u64 {
-//         let f = self.inner.finish();
-//         println!("finish = {f}");
-//         f
-//     }
-
-//     fn write(&mut self, bytes: &[u8]) {
-//         // println!("Hashing bytes: {:?}", bytes);
-//         self.inner.write(bytes);
-//     }
-
-//     // override other write_* methods similarly if needed
-// }
-
-// struct DebugBuildHasher<B> {
-//     inner: B,
-// }
-
-// impl<B> DebugBuildHasher<B> {
-//     fn new(inner: B) -> Self {
-//         DebugBuildHasher { inner }
-//     }
-// }
-
-// impl<B: BuildHasher> BuildHasher for DebugBuildHasher<B> {
-//     type Hasher = DebugHasher<B::Hasher>;
-
-//     fn build_hasher(&self) -> Self::Hasher {
-//         DebugHasher {
-//             inner: self.inner.build_hasher(),
-//         }
-//     }
-// }
-//     #[test]
-//     fn test_seed_effect() {
-//         // let read = random_dna_seq(31);
-//         let read = String::from("GTAGAGGATCAGCCCCTGCACTCCCTTCCTTGTTTTACAGGCTCGAATTTGTT");
-//         let read = read.as_bytes();
-//         let k = 31;
-//         let m = 11;
-
-//         // seed 0
-//         let hasher = DebugBuildHasher::new(DefaultHashBuilder::with_seed(0));
-
-//         let hasher = ahash::RandomState::with_seeds(
-//             0x0123_4567_89AB_ABAB,
-//             0x89AB_CDEF_BB23_4567,
-//             0xFEDC_BA98_76C4_3210,
-//             0x7654_3210_FEDC_BA98,
-//         );
-
-//         // let minimizer_iter = MinimizerBuilder::<u64>::new()
-//         //     .minimizer_size(m)
-//         //     .width((k - m + 1) as u16)
-//         //     .hasher(hasher)
-//         //     // .seed(0)
-//         //     .iter(read);
-//         println!("=== {}", hasher.hash_one(1));
-
-//         let minimizer_iter: CanonicalMinimizerPosIterator<'_, u64, ahash::RandomState> =
-//             CanonicalMinimizerPosIterator::new(read, m, (k - m + 1) as u16, hasher, ENCODING);
-//         let minimizers = minimizer_iter.collect_vec();
-
-//         println!("");
-
-//         // seed 1
-//         // let hasher = DebugBuildHasher::new(DefaultHashBuilder::with_seed(1));
-//         let hasher = ahash::RandomState::with_seeds(
-//             0x0123_4567_89AB_CDEF,
-//             0x89AB_CDEF_0123_4567,
-//             0xFEDC_BA98_7654_3211,
-//             0x7654_3210_FEDC_BA98,
-//         );
-//         println!("=== {}", hasher.hash_one(1));
-//         let minimizer_iter_seed: CanonicalMinimizerPosIterator<'_, u64, ahash::RandomState> =
-//             CanonicalMinimizerPosIterator::new(read, m, (k - m + 1) as u16, hasher, ENCODING);
-//         let minimizers_seed = minimizer_iter_seed.collect_vec();
-
-//         // same value
-//         assert!(minimizers != minimizers_seed);
-//     }
-// }

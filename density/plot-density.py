@@ -106,9 +106,10 @@ def ocmm(minimizer_size, w, nb_hash):
 def multimini_load(filename):
     with open(filename, "r") as fichier:
         content_all_k = json.load(fichier)
+        ns = content_all_k["ns"]
         content_all_k = content_all_k["data"]
     ws = []
-    densities = [[] for _ in range(8)]
+    densities = [[] for _ in range(len(ns))]
     minimizer_sizes = []
     ks = content_all_k.keys()
     ks = [int(k) for k in ks]
@@ -129,7 +130,7 @@ def multimini_load(filename):
         # compute w
         ws.append(k - m + 1)
 
-    return ws, densities, minimizer_sizes
+    return ns, ws, densities, minimizer_sizes
 
 
 def is_sorted(l):
@@ -137,13 +138,13 @@ def is_sorted(l):
 
 
 def multimini(filename):
-    ws, densities, minimizer_sizes = multimini_load(filename)
+    ns, ws, densities, minimizer_sizes = multimini_load(filename)
     for i in range(len(ws)):
         if ws[i] != ws[0]:
             print("internal error")
             exit()
     assert is_sorted(minimizer_sizes)
-    return densities, minimizer_sizes
+    return ns, densities, minimizer_sizes
 
 
 def simple_lower_bound(w, k):
@@ -195,15 +196,15 @@ def plot(data, plot_mocmm: bool, plot_only_small_values: bool):
             palette=TOOLS_PALETTE,
         )
 
-        densities, minimizer_sizes = multimini(f"../data_fixed_w_{w}.json")
-        for nb_hash, nb_hash_data in enumerate(densities, start=1):
+        ns, densities, minimizer_sizes = multimini(f"../data_fixed_w_{w}.json")
+        for nb_hash, nb_hash_data, color in zip(ns, densities, PALETTE):
             if not plot_mocmm:
                 if nb_hash > 1:
                     plt.plot(
                         minimizer_sizes,
                         nb_hash_data,
                         "--",
-                        color=PALETTE[nb_hash - 2],
+                        color=color,
                         label=f"Multiminimizers ({nb_hash})",
                     )
             else:
@@ -217,7 +218,7 @@ def plot(data, plot_mocmm: bool, plot_only_small_values: bool):
                     ks,
                     ocmms,
                     "--",
-                    color=PALETTE[nb_hash - 2],
+                    color=color,
                     label=f"MOCMM ({nb_hash})",
                 )
 
@@ -242,11 +243,6 @@ def plot(data, plot_mocmm: bool, plot_only_small_values: bool):
         )
 
         handles, labels = plt.gca().get_legend_handles_labels()
-        # pairs = list(sorted(zip(labels, handles)))
-        # pairs.insert(0, pairs.pop())
-        # pairs.append(pairs.pop(3))
-        # pairs[2], pairs[3] = pairs[3], pairs[2]
-        # labels, handles = zip(*pairs)
         plt.legend(
             handles,
             labels,
