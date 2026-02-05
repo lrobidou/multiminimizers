@@ -9,3 +9,6 @@ type Minimizer = u128;
 
 pub use crate::superkmers_computation::compute_all_superkmers_linear_streaming;
 pub use crate::superkmers_computation::compute_superkmers_linear_streaming;
+pub use simd_canonical_sticky_minimizer_iterator::{
+    AllCanonicalStickyMinimizerIteratorSIMD, CanonicalStickyMinimizerIteratorSIMD, SKInfos,
+};
