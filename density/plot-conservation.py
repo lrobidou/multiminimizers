@@ -44,9 +44,9 @@ def plot(filename):
         plt.plot(
             error_rates,
             conservation,
-            # "--",
+            linewidth=3,
             color=color,
-            label=f"N={nb_hash}",
+            label=f"{nb_hash} hash function{'s' if nb_hash > 1 else ''}",
         )
 
     plt.xlim(left=0)
