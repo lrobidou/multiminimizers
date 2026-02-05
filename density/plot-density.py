@@ -56,7 +56,7 @@ def parse_tuple(s):
     return (x, y)
 
 
-def ocmm(minimizer_size, w, nb_hash):
+def build_ocmm():
     import subprocess
     import sys
 
@@ -75,6 +75,10 @@ def ocmm(minimizer_size, w, nb_hash):
         print("Compilation failed:")
         print(result.stderr)
         sys.exit(1)
+
+
+def ocmm(minimizer_size, w, nb_hash):
+    import subprocess
 
     # Path to the compiled binary
     binary_path = project_path / "target" / "release" / project_path.name
@@ -268,6 +272,9 @@ def main():
 
     plot_mocmm = args.plot_mocmm
     plot_only_small_values = args.plot_only_small_values
+
+    if plot_mocmm:
+        build_ocmm()
 
     plot("density_4.json", plot_mocmm, plot_only_small_values)
 
