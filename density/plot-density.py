@@ -80,6 +80,9 @@ def build_ocmm():
 def ocmm(minimizer_size, w, nb_hash):
     import subprocess
 
+    # Path to the Rust ocmm project
+    project_path = OCMM_DIR
+
     # Path to the compiled binary
     binary_path = project_path / "target" / "release" / project_path.name
 
