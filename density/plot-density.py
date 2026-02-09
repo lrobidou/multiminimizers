@@ -190,6 +190,14 @@ def plot(data, plot_mocmm: bool, plot_only_small_values: bool):
         plt.axhline(y=(2) / (w + 1), color="black", linewidth=0.5)
         ks = list(range(df_filtered.k.min(), df_filtered.k.max() + 1))
 
+        plt.plot(
+            ks,
+            [lower_bound(w, k) for k in ks],
+            linewidth=2,
+            color="black",
+            label="Lower bound for forward schemes",
+        )
+
         sns.lineplot(
             x="k",
             y="density",
@@ -200,14 +208,6 @@ def plot(data, plot_mocmm: bool, plot_only_small_values: bool):
             marker=".",
             dashes=False,
             palette=TOOLS_PALETTE,
-        )
-
-        plt.plot(
-            ks,
-            [lower_bound(w, k) for k in ks],
-            linewidth=2,
-            color="black",
-            label="Lower bound for forward schemes",
         )
 
         ns, densities, minimizer_sizes = multimini(f"../data_fixed_w_{w}.json")
