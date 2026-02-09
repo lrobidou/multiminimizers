@@ -84,12 +84,13 @@ impl DataToPlot {
         read: &str,
         w: usize,
     ) -> Self {
-        let ns = vec![2, 3, 4, 8, 16, 32];
+        let ns = vec![1, 2, 3, 4, 8, 16, 32];
         let raw_data_for_multiple_ks = m_iter
             .map(|m| {
                 // w = k - m + 1
                 let k = w + m - 1;
                 let arr = vec![
+                    canonical_get_stats::<1>(read, k, m),
                     canonical_get_stats::<2>(read, k, m),
                     canonical_get_stats::<3>(read, k, m),
                     canonical_get_stats::<4>(read, k, m),

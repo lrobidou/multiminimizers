@@ -28,7 +28,7 @@ PALETTE = [
     "#E15759",
     "#F28E2B",
     "#EDC948",
-    "#59A14F",
+    "#9C755F",
 ]
 
 LABEL_ORDER = [
@@ -185,19 +185,26 @@ def plot(data, plot_mocmm: bool, plot_only_small_values: bool):
         df_filtered = df[df["w"] == w].drop(columns=["w"])
         plt.axhline(y=(1) / (w), color="black", linewidth=0.5)
         plt.axhline(y=(2) / (w + 1), color="black", linewidth=0.5)
-        ks = range(df_filtered.k.min(), df_filtered.k.max())
+        ks = list(range(df_filtered.k.min(), df_filtered.k.max() + 1))
 
         sns.lineplot(
             x="k",
             y="density",
             hue="minimizer_name",
-            # size="w",
             sizes=(1, 2),
             data=df_filtered,
             legend="full",
             marker=".",
             dashes=False,
             palette=TOOLS_PALETTE,
+        )
+
+        plt.plot(
+            ks,
+            [lower_bound(w, k) for k in ks],
+            linewidth=2,
+            color="black",
+            label="Lower bound for forward schemes",
         )
 
         ns, densities, minimizer_sizes = multimini(f"../data_fixed_w_{w}.json")
@@ -226,17 +233,8 @@ def plot(data, plot_mocmm: bool, plot_only_small_values: bool):
                     label=f"MOCMM ({nb_hash})",
                 )
 
-        plt.plot(
-            ks,
-            [lower_bound(w, k) for k in ks],
-            ":",
-            linewidth=3,
-            color=PALETTE[-1],
-            label="Lower bound for forward schemes",
-        )
-
         if plot_only_small_values:
-            plt.xlim(ks.start, 31)
+            plt.xlim(ks[0], 31)
 
         plt.title(f"Minimizer density on random text ($w={w}$)")
         plt.xlabel("Minimizer length $m$")
@@ -247,6 +245,10 @@ def plot(data, plot_mocmm: bool, plot_only_small_values: bool):
         )
 
         handles, labels = plt.gca().get_legend_handles_labels()
+        pairs = list(zip(labels, handles))
+        f = lambda p: (LABEL_ORDER.index(p[0].split(" ")[0]), len(p[0]), p[0])
+        pairs.sort(key=f)
+        labels, handles = zip(*pairs)
         plt.legend(
             handles,
             labels,
@@ -257,7 +259,6 @@ def plot(data, plot_mocmm: bool, plot_only_small_values: bool):
 
         ax = plt.gca()
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        # plt.tight_layout()
         plt.savefig(f"density_{s}_w_{w}.pdf", bbox_inches="tight", dpi=300)
         plt.clf()
         plt.close()
